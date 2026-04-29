@@ -1,0 +1,288 @@
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { Copy, Edit3, ExternalLink, Eye, EyeOff, Plus, Save, Trash2, X } from 'lucide-react';
+import { dbService } from '../services/dbService';
+import type { Product, Store } from '../types';
+
+const emptyProduct = {
+  name: '',
+  description: '',
+  price: '',
+  imageUrl: '',
+  category: '',
+  isActive: true,
+};
+
+export default function AdminPage() {
+  const { slug = '' } = useParams<{ slug: string }>();
+  const [store, setStore] = useState<Store | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [unlocked, setUnlocked] = useState(false);
+  const [adminCode, setAdminCode] = useState('');
+  const [error, setError] = useState('');
+
+  const accessKey = `zappedido_admin_${slug}`;
+
+  const loadStore = async () => {
+    setLoading(true);
+    const data = await dbService.getStoreBySlug(slug);
+    setStore(data);
+    setUnlocked(localStorage.getItem(accessKey) === 'true');
+    if (data) setProducts(await dbService.getProducts(data.id));
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadStore();
+  }, [slug]);
+
+  const handleUnlock = (event: FormEvent) => {
+    event.preventDefault();
+    if (!store) return;
+    if (adminCode.trim() !== store.adminCode) {
+      setError('Codigo de admin incorreto.');
+      return;
+    }
+    localStorage.setItem(accessKey, 'true');
+    setUnlocked(true);
+    setError('');
+  };
+
+  if (loading) return <Loading text="Carregando painel..." />;
+
+  if (!store) {
+    return (
+      <Centered>
+        <h1 className="text-3xl font-black">Loja nao encontrada</h1>
+        <Link to="/criar-loja" className="mt-6 inline-flex rounded-2xl bg-brand px-6 py-4 font-black text-white">Criar loja</Link>
+      </Centered>
+    );
+  }
+
+  if (!unlocked) {
+    return (
+      <Centered>
+        <div className="w-full max-w-md rounded-[36px] bg-white p-8 shadow-xl ring-1 ring-stone-100">
+          <h1 className="text-3xl font-black tracking-tight">Acessar painel</h1>
+          <p className="mt-3 font-medium text-stone-500">Digite o codigo de admin da loja {store.businessName}.</p>
+          {error && <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-600">{error}</p>}
+          <form onSubmit={handleUnlock} className="mt-6 space-y-4">
+            <input
+              value={adminCode}
+              onChange={event => setAdminCode(event.target.value)}
+              placeholder="Codigo de admin"
+              className="input-field"
+            />
+            <button className="w-full rounded-[24px] bg-stone-900 px-6 py-4 font-black uppercase tracking-widest text-white">
+              Desbloquear painel
+            </button>
+          </form>
+        </div>
+      </Centered>
+    );
+  }
+
+  return <Dashboard store={store} products={products} onRefresh={loadStore} />;
+}
+
+function Dashboard({ store, products, onRefresh }: { store: Store; products: Product[]; onRefresh: () => Promise<void> }) {
+  const [settings, setSettings] = useState({
+    businessName: store.businessName,
+    whatsappNumber: store.whatsappNumber,
+  });
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const menuUrl = `${window.location.origin}/loja/${store.slug}`;
+
+  const grouped: Record<string, Product[]> = useMemo(() => {
+    return products.reduce<Record<string, Product[]>>((acc, product) => {
+      const key = product.category || 'Sem categoria';
+      acc[key] = acc[key] || [];
+      acc[key].push(product);
+      return acc;
+    }, {});
+  }, [products]);
+
+  const saveSettings = async (event: FormEvent) => {
+    event.preventDefault();
+    setSavingSettings(true);
+    await dbService.updateStore(store.id, settings);
+    await onRefresh();
+    setSavingSettings(false);
+  };
+
+  const copyLink = () => navigator.clipboard.writeText(menuUrl);
+
+  return (
+    <div className="min-h-screen bg-bg-site px-6 py-8">
+      <div className="mx-auto max-w-6xl space-y-8">
+        <header className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-stone-400">Painel da loja</p>
+            <h1 className="mt-2 text-5xl font-black tracking-tight">{store.businessName}</h1>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button onClick={copyLink} className="btn-secondary"><Copy className="h-4 w-4" /> Copiar link</button>
+            <Link to={`/loja/${store.slug}`} target="_blank" className="btn-secondary"><ExternalLink className="h-4 w-4" /> Ver cardapio</Link>
+            <button onClick={() => { setEditingProduct(null); setModalOpen(true); }} className="btn-primary"><Plus className="h-4 w-4" /> Produto</button>
+          </div>
+        </header>
+
+        <form onSubmit={saveSettings} className="grid gap-4 rounded-[32px] bg-white p-6 shadow-sm ring-1 ring-stone-100 md:grid-cols-[1fr_220px_auto]">
+          <input value={settings.businessName} onChange={event => setSettings({ ...settings, businessName: event.target.value })} className="input-field" />
+          <input value={settings.whatsappNumber} onChange={event => setSettings({ ...settings, whatsappNumber: event.target.value })} className="input-field" />
+          <button disabled={savingSettings} className="btn-primary"><Save className="h-4 w-4" /> {savingSettings ? 'Salvando' : 'Salvar'}</button>
+        </form>
+
+        {products.length === 0 ? (
+          <div className="rounded-[32px] border-2 border-dashed border-stone-200 bg-white p-12 text-center">
+            <h2 className="text-2xl font-black">Nenhum produto ainda</h2>
+            <p className="mt-3 font-medium text-stone-500">Cadastre o primeiro item do seu cardapio.</p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {Object.entries(grouped).map(([category, items]) => (
+              <section key={category}>
+                <h2 className="mb-4 text-xs font-black uppercase tracking-widest text-stone-400">{category}</h2>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {items.map(product => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onEdit={() => { setEditingProduct(product); setModalOpen(true); }}
+                      onDelete={async () => {
+                        if (confirm('Excluir este produto?')) {
+                          await dbService.deleteProduct(product.id);
+                          await onRefresh();
+                        }
+                      }}
+                      onToggle={async () => {
+                        await dbService.updateProduct(product.id, { isActive: !product.isActive });
+                        await onRefresh();
+                      }}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {modalOpen && (
+        <ProductModal
+          storeId={store.id}
+          product={editingProduct}
+          onClose={() => setModalOpen(false)}
+          onSaved={async () => {
+            setModalOpen(false);
+            await onRefresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ProductCard({ product, onEdit, onDelete, onToggle }: { key?: string; product: Product; onEdit: () => void; onDelete: () => void; onToggle: () => void }) {
+  return (
+    <div className={`rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-stone-100 ${product.isActive ? '' : 'opacity-60'}`}>
+      <div className="flex gap-4">
+        <div className="h-20 w-20 overflow-hidden rounded-2xl bg-stone-100">
+          {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" /> : null}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-lg font-black">{product.name}</p>
+          <p className="text-sm font-bold text-brand">{formatCurrency(product.price)}</p>
+          <p className="mt-1 line-clamp-2 text-xs font-medium text-stone-500">{product.description}</p>
+        </div>
+      </div>
+      <div className="mt-5 flex items-center justify-between border-t border-stone-100 pt-4">
+        <button onClick={onToggle} className="rounded-2xl bg-stone-50 px-4 py-2 text-xs font-black">
+          {product.isActive ? <Eye className="inline h-4 w-4" /> : <EyeOff className="inline h-4 w-4" />} {product.isActive ? 'Ativo' : 'Inativo'}
+        </button>
+        <div className="flex gap-2">
+          <button onClick={onEdit} className="icon-button"><Edit3 className="h-4 w-4" /></button>
+          <button onClick={onDelete} className="icon-button text-red-500"><Trash2 className="h-4 w-4" /></button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string; product: Product | null; onClose: () => void; onSaved: () => void }) {
+  const [formData, setFormData] = useState({
+    name: product?.name || emptyProduct.name,
+    description: product?.description || emptyProduct.description,
+    price: product ? String(product.price).replace('.', ',') : emptyProduct.price,
+    imageUrl: product?.imageUrl || emptyProduct.imageUrl,
+    category: product?.category || emptyProduct.category,
+    isActive: product?.isActive ?? emptyProduct.isActive,
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    const payload = {
+      storeId,
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      price: Number(formData.price.replace(',', '.')),
+      imageUrl: formData.imageUrl.trim(),
+      category: formData.category.trim() || 'Geral',
+      isActive: formData.isActive,
+    };
+    if (product) await dbService.updateProduct(product.id, payload);
+    else await dbService.addProduct(payload);
+    setSaving(false);
+    onSaved();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-stone-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-6">
+      <form onSubmit={handleSubmit} className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-[36px] bg-white p-6 shadow-2xl sm:rounded-[36px]">
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-3xl font-black">{product ? 'Editar produto' : 'Novo produto'}</h2>
+          <button type="button" onClick={onClose} className="icon-button"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="space-y-4">
+          <input required value={formData.name} onChange={event => setFormData({ ...formData, name: event.target.value })} placeholder="Nome" className="input-field" />
+          <div className="grid grid-cols-2 gap-4">
+            <input required value={formData.price} onChange={event => setFormData({ ...formData, price: event.target.value })} placeholder="Preco" className="input-field" />
+            <input required value={formData.category} onChange={event => setFormData({ ...formData, category: event.target.value })} placeholder="Categoria" className="input-field" />
+          </div>
+          <textarea value={formData.description} onChange={event => setFormData({ ...formData, description: event.target.value })} placeholder="Descricao" rows={3} className="input-field resize-none" />
+          <input value={formData.imageUrl} onChange={event => setFormData({ ...formData, imageUrl: event.target.value })} placeholder="Link da imagem" className="input-field" />
+          <label className="flex items-center gap-3 font-bold text-stone-600">
+            <input type="checkbox" checked={formData.isActive} onChange={event => setFormData({ ...formData, isActive: event.target.checked })} />
+            Produto ativo
+          </label>
+          <button disabled={saving} className="btn-primary w-full justify-center">{saving ? 'Salvando...' : 'Salvar produto'}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function Centered({ children }: { children: ReactNode }) {
+  return <div className="flex min-h-screen items-center justify-center bg-bg-site p-6 text-center">{children}</div>;
+}
+
+function Loading({ text }: { text: string }) {
+  return (
+    <Centered>
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand border-t-transparent" />
+        <p className="font-bold text-stone-500">{text}</p>
+      </div>
+    </Centered>
+  );
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}

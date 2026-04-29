@@ -1,56 +1,30 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // Profiles
-    match /profiles/{userId} {
-      allow read: if true; // Publicly readable for the menu
-      allow create, update: if isOwner(userId) && 
-        request.resource.data.keys().hasAll(['businessName', 'whatsappNumber', 'slug', 'ownerId']) &&
+    // TODO: This no-login adminCode access is for MVP validation only. Before scaling, replace with Firebase Auth and hashed admin codes or proper owner authentication.
+    // Public MVP access so the app can launch without Firebase Authentication.
+    match /stores/{storeId} {
+      allow read: if true;
+      allow create, update: if isValidId(storeId) &&
+        request.resource.data.keys().hasAll(['businessName', 'whatsappNumber', 'slug', 'adminCode']) &&
         request.resource.data.businessName is string &&
         request.resource.data.whatsappNumber is string &&
-        request.resource.data.slug is string &&
-        request.resource.data.ownerId == userId;
+        request.resource.data.slug is string;
+      allow delete: if false;
     }
 
-    // Slugs lookup (for uniqueness)
-    match /slugs/{slug} {
-      allow read: if true;
-      allow create: if isSignedIn() && isValidId(slug) &&
-        request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isSignedIn() &&
-        resource.data.ownerId == request.auth.uid;
-    }
-
-    // Products
     match /products/{productId} {
-      allow read: if true; // Publicly readable for the menu
-      allow create: if isSignedIn() &&
-        request.resource.data.ownerId == request.auth.uid &&
+      allow read: if true;
+      allow create, update: if isValidId(productId) &&
+        request.resource.data.storeId is string &&
         request.resource.data.name is string &&
         request.resource.data.price is number &&
         request.resource.data.category is string;
-      allow update: if isSignedIn() &&
-        resource.data.ownerId == request.auth.uid &&
-        request.resource.data.ownerId == resource.data.ownerId;
-      allow delete: if isSignedIn() &&
-        resource.data.ownerId == request.auth.uid;
+      allow delete: if true;
     }
   }
 }

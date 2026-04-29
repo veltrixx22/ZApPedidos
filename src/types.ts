@@ -1,14 +1,16 @@
-export interface Profile {
-  ownerId: string;
+export interface Store {
+  id: string;
   businessName: string;
   whatsappNumber: string;
   slug: string;
+  adminCode: string;
   createdAt: number;
+  updatedAt: number;
 }
 
 export interface Product {
   id: string;
-  ownerId: string;
+  storeId: string;
   name: string;
   description: string;
   price: number;
@@ -16,6 +18,7 @@ export interface Product {
   category: string;
   isActive: boolean;
   createdAt: number;
+  updatedAt: number;
 }
 
 export interface CartItem extends Product {

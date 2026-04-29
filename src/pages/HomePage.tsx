@@ -1,208 +1,108 @@
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'motion/react';
-import { ShoppingCart, Smartphone, Send, Zap, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
+import { ArrowRight, CheckCircle2, ExternalLink, MessageCircle, Store, Zap } from 'lucide-react';
 
 export default function HomePage() {
-  const navigate = useNavigate();
-
   return (
-    <div className="flex flex-col min-h-screen relative overflow-hidden">
-      {/* Background Decorations */}
-      <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-orange-200 rounded-full blur-[120px] opacity-20 pointer-events-none"></div>
-      <div className="absolute top-1/4 -right-24 w-64 h-64 bg-green-200 rounded-full blur-[100px] opacity-10 pointer-events-none"></div>
-
-      {/* Header */}
-      <header className="px-6 md:px-12 py-8 flex items-center justify-between bg-transparent relative z-10">
-        <div className="flex items-center gap-2">
-          <div className="bg-brand w-8 h-8 rounded-lg flex items-center justify-center">
-            <span className="text-white font-black">Z</span>
+    <div className="min-h-screen bg-bg-site text-stone-900">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-white">
+            <Zap className="h-5 w-5 fill-current" />
           </div>
-          <span className="font-display font-black text-2xl tracking-tighter text-stone-900">ZapPedido</span>
-        </div>
-        <div className="flex items-center gap-6">
-          <button className="hidden md:block text-sm font-semibold text-stone-500 hover:text-stone-900 transition-colors">Funcionalidades</button>
-          <button className="hidden md:block text-sm font-semibold text-stone-500 hover:text-stone-900 transition-colors">Preços</button>
-          <button 
-            onClick={() => navigate('/entrar')}
-            className="text-brand font-black text-sm tracking-tight hover:scale-105 transition-transform"
-          >
-            Entrar
-          </button>
-        </div>
+          <span className="font-display text-2xl font-black tracking-tight">ZapPedido</span>
+        </Link>
+        <Link
+          to="/criar-loja"
+          className="rounded-2xl bg-stone-900 px-5 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:bg-stone-800"
+        >
+          Criar loja
+        </Link>
       </header>
 
-      {/* Hero Section - Split Grid */}
-      <section className="px-6 md:px-12 pt-20 md:pt-32 pb-24 max-w-7xl mx-auto w-full relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-          
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6 }}
-            className="lg:col-span-6 xl:col-span-5 pt-12 text-left"
-          >
-            <span className="inline-block px-3 py-1 bg-orange-100 text-orange-700 text-xs font-black rounded-full mb-6 uppercase tracking-widest">
-              7 Dias Grátis
-            </span>
-            <h1 className="font-display text-[56px] md:text-[80px] font-black leading-[0.9] tracking-tighter text-stone-900 mb-8">
-              Seu cardápio <br/>online com <br/>
-              <span className="text-brand font-black-italic">pedidos</span> no <br/>
-              WhatsApp
-            </h1>
-            <p className="text-xl text-stone-600 mb-10 max-w-sm leading-relaxed font-medium">
-              Crie seu menu digital em minutos e receba pedidos organizados direto no seu celular. Sem taxas ocultas.
+      <main>
+        <section className="mx-auto grid max-w-6xl items-center gap-12 px-6 py-16 lg:grid-cols-[1fr_420px] lg:py-24">
+          <div>
+            <p className="mb-5 inline-flex items-center gap-2 rounded-full bg-orange-100 px-4 py-2 text-xs font-black uppercase tracking-widest text-orange-700">
+              Sem login, pronto para vender hoje
             </p>
-            
-            <div className="flex flex-col sm:flex-row items-center gap-6">
-              <button 
-                onClick={() => navigate('/entrar')}
-                className="w-full sm:w-auto px-10 py-5 bg-brand text-white rounded-2xl font-black text-lg shadow-2xl shadow-orange-200 hover:bg-orange-600 hover:scale-105 transition-all"
+            <h1 className="max-w-3xl font-display text-5xl font-black leading-none tracking-tight text-stone-950 md:text-7xl">
+              Cardapio online com pedido direto no WhatsApp.
+            </h1>
+            <p className="mt-7 max-w-xl text-lg font-medium leading-relaxed text-stone-600">
+              Crie o link da sua loja, cadastre produtos e receba pedidos formatados no WhatsApp. Simples, rapido e sem taxa por pedido.
+            </p>
+            <div className="mt-9 flex flex-col gap-4 sm:flex-row">
+              <Link
+                to="/criar-loja"
+                className="inline-flex items-center justify-center gap-3 rounded-[28px] bg-brand px-8 py-5 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-orange-200 transition hover:bg-orange-600"
               >
-                Começar agora
-              </button>
-              <div className="flex flex-col">
-                <span className="text-xl font-black text-stone-900 tracking-tighter">R$ 19,90</span>
-                <span className="text-xs font-bold text-stone-400 uppercase tracking-widest">por mês, sem comissão</span>
+                Criar meu cardapio gratis <ArrowRight className="h-5 w-5" />
+              </Link>
+              <Link
+                to="/loja/exemplo"
+                className="inline-flex items-center justify-center gap-3 rounded-[28px] bg-white px-8 py-5 text-sm font-black uppercase tracking-widest text-stone-900 shadow-sm ring-1 ring-stone-200 transition hover:bg-stone-50"
+              >
+                Ver exemplo <ExternalLink className="h-5 w-5" />
+              </Link>
+            </div>
+          </div>
+
+          <div className="rounded-[40px] bg-white p-6 shadow-2xl shadow-stone-200/70 ring-1 ring-stone-100">
+            <div className="rounded-[32px] bg-stone-950 p-6 text-white">
+              <div className="mb-8 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-orange-300">Pedido recebido</p>
+                  <h2 className="mt-1 text-2xl font-black">Burger House</h2>
+                </div>
+                <MessageCircle className="h-8 w-8 text-whatsapp" />
+              </div>
+              <div className="space-y-3 rounded-3xl bg-white/10 p-5 text-sm">
+                <p>Cliente: Maria</p>
+                <p>Pagamento: PIX</p>
+                <p>Pedido: 2x X-Burger</p>
+                <p className="font-black text-orange-300">Total: R$ 49,80</p>
               </div>
             </div>
-          </motion.div>
-
-          {/* Right Side: Interface Preview (Artistic Flair) */}
-          <div className="lg:col-span-6 xl:col-span-7 relative h-[500px] md:h-[600px] hidden lg:block">
-            {/* Dashboard Card Preview */}
-            <motion.div 
-              initial={{ opacity: 0, rotate: 10, y: 50 }}
-              animate={{ opacity: 1, rotate: 2, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.8 }}
-              className="absolute top-0 right-0 w-[420px] bg-white rounded-[32px] shadow-2xl border border-stone-100 p-8 z-0"
-            >
-              <div className="flex justify-between items-center mb-8">
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-black text-stone-400 tracking-widest">Dashboard do Lojista</span>
-                  <span className="text-xl font-black text-stone-900">Burger House 🍔</span>
-                </div>
-                <div className="w-10 h-10 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-center">
-                  <div className="w-2 h-2 bg-whatsapp rounded-full animate-pulse"></div>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="p-4 bg-stone-50 rounded-2xl flex items-center justify-between border border-stone-100">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-orange-200 rounded-xl" />
-                    <div>
-                      <p className="font-black text-sm text-stone-900 leading-none">X-Burger Clássico</p>
-                      <p className="text-xs font-bold text-stone-500 mt-1 italic">R$ 24,90</p>
-                    </div>
-                  </div>
-                  <div className="w-8 h-4 bg-brand rounded-full relative">
-                    <div className="absolute right-1 top-1 w-2 h-2 bg-white rounded-full"></div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-8 p-4 bg-orange-50 rounded-2xl flex items-center justify-between border border-orange-100">
-                <div className="text-[10px] font-black text-orange-800 font-mono">zappedido.app/loja/burger-house</div>
-                <button className="text-[10px] uppercase font-black text-brand tracking-widest">Copiar Link</button>
-              </div>
-            </motion.div>
-
-            {/* Mobile Frame Preview */}
-            <motion.div 
-              initial={{ opacity: 0, x: -50, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
-              className="absolute left-0 top-20 w-[260px] h-[500px] bg-stone-900 rounded-[50px] p-2.5 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.4)] z-10 border-[6px] border-stone-800"
-            >
-              <div className="w-full h-full bg-white rounded-[38px] overflow-hidden flex flex-col relative">
-                <div className="pt-8 px-5 pb-4">
-                  <h2 className="text-lg font-black tracking-tight text-stone-900">Burger House</h2>
-                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Aberto agora • 20-30 min</p>
-                </div>
-                <div className="flex-1 p-5 pt-0">
-                  <div className="w-full h-32 bg-gradient-to-br from-orange-400 to-brand rounded-2xl mb-4" />
-                  <div className="space-y-4">
-                    <div className="flex gap-3">
-                      <div className="flex-1">
-                        <h3 className="text-sm font-black text-stone-900">X-Burger</h3>
-                        <p className="text-[8px] text-stone-500 leading-tight font-medium mt-0.5">Pão brioche, carne Angus 150g...</p>
-                        <p className="text-xs font-black-italic text-brand mt-1">R$ 24,90</p>
-                      </div>
-                      <div className="w-8 h-8 bg-brand text-white rounded-xl flex items-center justify-center font-bold">+</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4 bg-white border-t border-stone-100">
-                  <div className="w-full py-3 bg-whatsapp text-white rounded-xl font-black text-[10px] uppercase tracking-widest text-center">
-                    Finalizar no WhatsApp
-                  </div>
-                </div>
-              </div>
-            </motion.div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Benefits - Simplified artistic look */}
-      <section className="bg-stone-50/50 py-24 px-6 md:px-12">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            <BenefitCard 
-              icon={<Zap className="w-8 h-8 text-brand fill-current" />}
-              title="Configuração Rápida"
-              description="Em menos de 5 minutos seu cardápio está no ar pronto para receber pedidos."
-            />
-            <BenefitCard 
-              icon={<Send className="w-8 h-8 text-stone-900 fill-current" />}
-              title="Pedidos no WhatsApp"
-              description="Receba pedidos organizados e formatados diretamente no seu WhatsApp."
-            />
-            <BenefitCard 
-              icon={<Smartphone className="w-8 h-8 text-brand" />}
-              title="Mobile First"
-              description="Experiência perfeita para seus clientes pedirem pelo celular."
-            />
+        <section className="border-y border-stone-100 bg-white px-6 py-16">
+          <div className="mx-auto grid max-w-6xl gap-5 md:grid-cols-4">
+            <Feature text="Sem taxa por pedido" />
+            <Feature text="Pedido direto no WhatsApp" />
+            <Feature text="Link proprio da loja" />
+            <Feature text="Sem precisar instalar app" />
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Stats/Social Proof */}
-      <section className="py-20 px-6 text-center bg-white">
-        <h2 className="font-display text-3xl font-bold mb-12">Por que escolher o ZapPedido?</h2>
-        <div className="flex flex-wrap justify-center gap-8 max-w-4xl mx-auto">
-          <div className="p-6 bg-zinc-50 rounded-2xl flex-1 min-w-[240px]">
-            <p className="text-3xl font-bold text-brand mb-2">0%</p>
-            <p className="text-zinc-600 font-medium">Taxa por pedido</p>
-          </div>
-          <div className="p-6 bg-zinc-50 rounded-2xl flex-1 min-w-[240px]">
-            <p className="text-3xl font-bold text-brand mb-2">100%</p>
-            <p className="text-zinc-600 font-medium">Link próprio seu</p>
-          </div>
-          <div className="p-6 bg-zinc-50 rounded-2xl flex-1 min-w-[240px]">
-            <p className="text-3xl font-bold text-brand mb-2">24h</p>
-            <p className="text-zinc-600 font-medium">Disponível sempre</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="mt-auto py-12 px-6 bg-zinc-900 text-white text-center">
-        <div className="flex items-center justify-center gap-2 mb-6 opacity-80">
-          <Zap className="w-5 h-5" />
-          <span className="font-display font-bold text-lg">ZapPedido</span>
-        </div>
-        <p className="text-zinc-400 text-sm">© 2024 ZapPedido - O seu cardápio digital.</p>
-      </footer>
+        <section className="mx-auto grid max-w-6xl gap-8 px-6 py-16 md:grid-cols-3">
+          <InfoCard icon={<Store />} title="Crie sua loja" text="Escolha um nome, WhatsApp, link e codigo de admin." />
+          <InfoCard icon={<CheckCircle2 />} title="Cadastre produtos" text="Adicione preco, categoria, foto e status ativo ou inativo." />
+          <InfoCard icon={<MessageCircle />} title="Receba pedidos" text="O cliente monta a sacola e envia tudo pronto pelo WhatsApp." />
+        </section>
+      </main>
     </div>
   );
 }
 
-function BenefitCard({ icon, title, description }: { icon: any, title: string, description: string }) {
+function Feature({ text }: { text: string }) {
   return (
-    <div className="bg-white p-8 rounded-3xl border border-zinc-100 shadow-sm hover:shadow-md transition-shadow">
-      <div className="mb-6">{icon}</div>
-      <h3 className="font-display text-xl font-bold mb-3">{title}</h3>
-      <p className="text-zinc-500 leading-relaxed">{description}</p>
+    <div className="flex items-center gap-3 rounded-3xl bg-stone-50 p-5 font-bold text-stone-700 ring-1 ring-stone-100">
+      <CheckCircle2 className="h-5 w-5 text-brand" />
+      {text}
+    </div>
+  );
+}
+
+function InfoCard({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+  return (
+    <div className="rounded-[32px] bg-white p-7 shadow-sm ring-1 ring-stone-100">
+      <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-100 text-brand">
+        {icon}
+      </div>
+      <h3 className="text-xl font-black">{title}</h3>
+      <p className="mt-3 font-medium leading-relaxed text-stone-500">{text}</p>
     </div>
   );
 }

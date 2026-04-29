@@ -1,102 +1,120 @@
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy,
-  serverTimestamp,
-  type DocumentData
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+  type DocumentData,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/errorHandling';
-import type { Profile, Product } from '../types';
+import type { Product, Store } from '../types';
+
+type StoreInput = Pick<Store, 'businessName' | 'whatsappNumber' | 'slug' | 'adminCode'>;
+type ProductInput = Omit<Product, 'id' | 'createdAt' | 'updatedAt'>;
+
+const normalizeSlug = (slug: string) => slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
 
 export const dbService = {
-  async getProfile(userId: string): Promise<Profile | null> {
-    const path = `profiles/${userId}`;
+  async getStoreBySlug(slug: string): Promise<Store | null> {
+    const path = 'stores';
     try {
-      const docSnap = await getDoc(doc(db, path));
-      return docSnap.exists() ? docSnap.data() as Profile : null;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, path);
-      return null;
-    }
-  },
-
-  async getProfileBySlug(slug: string): Promise<Profile | null> {
-    const path = 'profiles';
-    try {
-      const q = query(collection(db, path), where('slug', '==', slug.toLowerCase()));
-      const querySnapshot = await getDocs(q);
-      if (querySnapshot.empty) return null;
-      return querySnapshot.docs[0].data() as Profile;
+      const q = query(collection(db, path), where('slug', '==', normalizeSlug(slug)));
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) return null;
+      const storeDoc = snapshot.docs[0];
+      return { id: storeDoc.id, ...storeDoc.data() } as Store;
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, path);
       return null;
     }
   },
 
-  async saveProfile(profile: Profile): Promise<void> {
-    const path = `profiles/${profile.ownerId}`;
-    try {
-      // Also update slug lookup
-      await setDoc(doc(db, 'slugs', profile.slug.toLowerCase()), { ownerId: profile.ownerId });
-      await setDoc(doc(db, path), {
-        ...profile,
-        slug: profile.slug.toLowerCase(),
-        updatedAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, path);
-    }
+  async checkStoreSlugAvailability(slug: string, currentStoreId?: string): Promise<boolean> {
+    const store = await this.getStoreBySlug(slug);
+    return !store || store.id === currentStoreId;
   },
 
-  async getProducts(ownerId: string, onlyActive = false): Promise<Product[]> {
-    const path = 'products';
+  async createStore(store: StoreInput): Promise<string> {
+    const path = 'stores';
     try {
-      let q = query(
-        collection(db, path), 
-        where('ownerId', '==', ownerId),
-        orderBy('category', 'asc'),
-        orderBy('createdAt', 'desc')
-      );
-      
-      if (onlyActive) {
-        q = query(q, where('isActive', '==', true));
-      }
-
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, path);
-      return [];
-    }
-  },
-
-  async addProduct(product: Omit<Product, 'id'>): Promise<string> {
-    const path = 'products';
-    try {
-      const newDocRef = doc(collection(db, path));
-      await setDoc(newDocRef, {
-        ...product,
-        createdAt: Date.now()
+      const storeRef = doc(collection(db, path));
+      const now = Date.now();
+      // TODO: This no-login adminCode access is for MVP validation only. Before scaling, replace with Firebase Auth and hashed admin codes or proper owner authentication.
+      await setDoc(storeRef, {
+        ...store,
+        slug: normalizeSlug(store.slug),
+        whatsappNumber: store.whatsappNumber.replace(/\D/g, ''),
+        adminCode: store.adminCode.trim(),
+        createdAt: now,
+        updatedAt: now,
       });
-      return newDocRef.id;
+      return storeRef.id;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
       return '';
     }
   },
 
-  async updateProduct(id: string, product: Partial<Product>): Promise<void> {
+  async updateStore(storeId: string, store: Partial<Pick<Store, 'businessName' | 'whatsappNumber' | 'slug'>>): Promise<void> {
+    const path = `stores/${storeId}`;
+    try {
+      const payload: DocumentData = {
+        ...store,
+        updatedAt: Date.now(),
+      };
+      if (store.slug) payload.slug = normalizeSlug(store.slug);
+      if (store.whatsappNumber) payload.whatsappNumber = store.whatsappNumber.replace(/\D/g, '');
+      await updateDoc(doc(db, path), payload);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    }
+  },
+
+  async getProducts(storeId: string, onlyActive = false): Promise<Product[]> {
+    const path = 'products';
+    try {
+      const q = query(collection(db, path), where('storeId', '==', storeId));
+      const snapshot = await getDocs(q);
+      const products = snapshot.docs.map(productDoc => ({ id: productDoc.id, ...productDoc.data() } as Product));
+      return products
+        .filter(product => !onlyActive || product.isActive)
+        .sort((a, b) => a.category.localeCompare(b.category) || b.createdAt - a.createdAt);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  },
+
+  async addProduct(product: ProductInput): Promise<string> {
+    const path = 'products';
+    try {
+      const productRef = doc(collection(db, path));
+      const now = Date.now();
+      await setDoc(productRef, {
+        ...product,
+        price: Number(product.price),
+        isActive: product.isActive !== false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return productRef.id;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+      return '';
+    }
+  },
+
+  async updateProduct(id: string, product: Partial<ProductInput>): Promise<void> {
     const path = `products/${id}`;
     try {
-      await updateDoc(doc(db, path), product as DocumentData);
+      await updateDoc(doc(db, path), {
+        ...product,
+        updatedAt: Date.now(),
+      } as DocumentData);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -110,16 +128,4 @@ export const dbService = {
       handleFirestoreError(error, OperationType.DELETE, path);
     }
   },
-
-  async checkSlugAvailability(slug: string, currentOwnerId: string): Promise<boolean> {
-    const path = `slugs/${slug.toLowerCase()}`;
-    try {
-      const docSnap = await getDoc(doc(db, path));
-      if (!docSnap.exists()) return true;
-      return docSnap.data().ownerId === currentOwnerId;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, path);
-      return false;
-    }
-  }
 };
