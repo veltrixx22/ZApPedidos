@@ -3,6 +3,7 @@ import HomePage from './pages/HomePage';
 import CreateStorePage from './pages/CreateStorePage';
 import AdminPage from './pages/AdminPage';
 import MenuPage from './pages/MenuPage';
+import OwnerLoginPage from './pages/OwnerLoginPage';
 
 export default function App() {
   return (
@@ -10,6 +11,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/criar-loja" element={<CreateStorePage />} />
+        <Route path="/entrar" element={<OwnerLoginPage />} />
         <Route path="/admin/:slug" element={<AdminPage />} />
         <Route path="/loja/:slug" element={<MenuPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

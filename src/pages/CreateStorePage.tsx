@@ -18,6 +18,9 @@ export default function CreateStorePage() {
   const [adminCode, setAdminCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [slugAlreadyExists, setSlugAlreadyExists] = useState(false);
+
+  const cleanSlug = normalizeSlug(slug);
 
   const handleBusinessNameChange = (value: string) => {
     setBusinessName(value);
@@ -27,6 +30,7 @@ export default function CreateStorePage() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
+    setSlugAlreadyExists(false);
     setLoading(true);
 
     try {
@@ -36,7 +40,6 @@ export default function CreateStorePage() {
         return;
       }
 
-      const cleanSlug = normalizeSlug(slug);
       const cleanNumber = whatsappNumber.replace(/\D/g, '');
 
       if (!businessName.trim() || !cleanNumber || !cleanSlug || !adminCode.trim()) {
@@ -66,8 +69,9 @@ export default function CreateStorePage() {
     } catch (error) {
       console.error('Create store error:', error);
       const message = getErrorMessage(error);
-      if (message.includes('Esse link de loja já está em uso')) {
-        setError('Esse link de loja já está em uso. Escolha outro.');
+      if (message.includes('loja') && message.includes('uso')) {
+        setSlugAlreadyExists(true);
+        setError('Esse link de loja já está em uso. Se essa loja é sua, entre no painel.');
       } else if (import.meta.env.DEV) {
         setError(message);
       } else {
@@ -81,10 +85,15 @@ export default function CreateStorePage() {
   return (
     <div className="min-h-screen bg-bg-site px-6 py-8">
       <div className="mx-auto max-w-2xl">
-        <Link to="/" className="mb-8 inline-flex items-center gap-2 text-sm font-black uppercase tracking-widest text-stone-500 hover:text-stone-900">
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </Link>
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <Link to="/" className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-widest text-stone-500 hover:text-stone-900">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Link>
+          <Link to="/entrar" className="text-sm font-black uppercase tracking-widest text-brand hover:text-orange-600">
+            Já tenho uma loja
+          </Link>
+        </div>
 
         <div className="rounded-[40px] bg-white p-8 shadow-xl shadow-stone-200/70 ring-1 ring-stone-100 md:p-12">
           <div className="mb-10 text-center">
@@ -101,7 +110,16 @@ export default function CreateStorePage() {
 
           {error && (
             <div className="mb-6 rounded-3xl bg-red-50 p-4 text-sm font-bold text-red-600 ring-1 ring-red-100">
-              {error}
+              <p>{error}</p>
+              {slugAlreadyExists && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/entrar?slug=${encodeURIComponent(cleanSlug)}`)}
+                  className="mt-4 rounded-2xl bg-red-600 px-5 py-3 text-xs font-black uppercase tracking-widest text-white"
+                >
+                  Entrar no painel
+                </button>
+              )}
             </div>
           )}
 
@@ -158,6 +176,10 @@ export default function CreateStorePage() {
               <Zap className="h-5 w-5 fill-current" />
             </button>
           </form>
+
+          <p className="mt-8 text-center text-sm font-bold text-stone-500">
+            Já tenho uma loja? <Link to="/entrar" className="text-brand">Entrar no painel</Link>
+          </p>
         </div>
       </div>
     </div>

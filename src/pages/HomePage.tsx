@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { ArrowRight, CheckCircle2, ExternalLink, MessageCircle, Store, Zap } from 'lucide-react';
+import { ArrowRight, CheckCircle2, LogIn, MessageCircle, Store, Zap } from 'lucide-react';
 
 export default function HomePage() {
   return (
@@ -40,10 +40,10 @@ export default function HomePage() {
                 Criar meu cardapio gratis <ArrowRight className="h-5 w-5" />
               </Link>
               <Link
-                to="/loja/exemplo"
+                to="/entrar"
                 className="inline-flex items-center justify-center gap-3 rounded-[28px] bg-white px-8 py-5 text-sm font-black uppercase tracking-widest text-stone-900 shadow-sm ring-1 ring-stone-200 transition hover:bg-stone-50"
               >
-                Ver exemplo <ExternalLink className="h-5 w-5" />
+                Já tenho uma loja <LogIn className="h-5 w-5" />
               </Link>
             </div>
           </div>

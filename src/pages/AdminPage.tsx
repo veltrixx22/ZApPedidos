@@ -66,6 +66,13 @@ export default function AdminPage() {
     setError('');
   };
 
+  const clearAccess = () => {
+    localStorage.removeItem(accessKey);
+    setUnlocked(false);
+    setAdminCode('');
+    setError('');
+  };
+
   if (loading) return <Loading text="Carregando painel..." />;
 
   if (!store) {
@@ -100,10 +107,10 @@ export default function AdminPage() {
     );
   }
 
-  return <Dashboard store={store} products={products} onRefresh={loadStore} />;
+  return <Dashboard store={store} products={products} onRefresh={loadStore} onClearAccess={clearAccess} />;
 }
 
-function Dashboard({ store, products, onRefresh }: { store: Store; products: Product[]; onRefresh: () => Promise<void> }) {
+function Dashboard({ store, products, onRefresh, onClearAccess }: { store: Store; products: Product[]; onRefresh: () => Promise<void>; onClearAccess: () => void }) {
   const [settings, setSettings] = useState({
     businessName: store.businessName,
     whatsappNumber: store.whatsappNumber,
@@ -113,6 +120,7 @@ function Dashboard({ store, products, onRefresh }: { store: Store; products: Pro
   const [savingSettings, setSavingSettings] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
   const menuUrl = `${window.location.origin}/loja/${store.slug}`;
+  const adminUrl = `${window.location.origin}/admin/${store.slug}`;
 
   const grouped: Record<string, Product[]> = useMemo(() => {
     return products.reduce<Record<string, Product[]>>((acc, product) => {
@@ -131,13 +139,13 @@ function Dashboard({ store, products, onRefresh }: { store: Store; products: Pro
     setSavingSettings(false);
   };
 
-  const copyMenuLink = async () => {
+  const copyLink = async (url: string, label: string) => {
     try {
       if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(menuUrl);
+        await navigator.clipboard.writeText(url);
       } else {
         const textArea = document.createElement('textarea');
-        textArea.value = menuUrl;
+        textArea.value = url;
         textArea.style.position = 'fixed';
         textArea.style.left = '-999999px';
         textArea.style.top = '-999999px';
@@ -148,7 +156,7 @@ function Dashboard({ store, products, onRefresh }: { store: Store; products: Pro
         textArea.remove();
       }
 
-      setCopyStatus('Link copiado!');
+      setCopyStatus(`${label} copiado!`);
     } catch (error) {
       console.error('Copy link error:', error);
       setCopyStatus('Não foi possível copiar. Copie manualmente.');
@@ -164,16 +172,19 @@ function Dashboard({ store, products, onRefresh }: { store: Store; products: Pro
             <h1 className="mt-2 text-5xl font-black tracking-tight">{store.businessName}</h1>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <button onClick={copyMenuLink} className="btn-secondary"><Copy className="h-4 w-4" /> Copiar link</button>
+            <button onClick={() => copyLink(menuUrl, 'Link publico')} className="btn-secondary"><Copy className="h-4 w-4" /> Copiar menu</button>
             <Link to={`/loja/${store.slug}`} target="_blank" className="btn-secondary"><ExternalLink className="h-4 w-4" /> Ver cardapio</Link>
+            <button onClick={onClearAccess} className="btn-secondary">Entrar com outro código</button>
             <button onClick={() => { setEditingProduct(null); setModalOpen(true); }} className="btn-primary"><Plus className="h-4 w-4" /> Produto</button>
           </div>
         </header>
 
-        <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-stone-100">
-          <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-stone-400">Link publico do cardapio</label>
-          <input value={menuUrl} readOnly className="input-field" />
-          {copyStatus && <p className="mt-3 text-sm font-bold text-stone-600">{copyStatus}</p>}
+        <div className="space-y-3">
+          <div className="grid gap-4 md:grid-cols-2">
+            <LinkBox label="Public menu link" value={menuUrl} onCopy={() => copyLink(menuUrl, 'Link publico')} />
+            <LinkBox label="Admin panel link" value={adminUrl} onCopy={() => copyLink(adminUrl, 'Link admin')} />
+          </div>
+          {copyStatus && <p className="text-sm font-bold text-stone-600">{copyStatus}</p>}
         </div>
 
         <form onSubmit={saveSettings} className="grid gap-4 rounded-[32px] bg-white p-6 shadow-sm ring-1 ring-stone-100 md:grid-cols-[1fr_220px_auto]">
@@ -254,6 +265,21 @@ function ProductCard({ product, onEdit, onDelete, onToggle }: { key?: string; pr
           <button onClick={onDelete} className="icon-button text-red-500"><Trash2 className="h-4 w-4" /></button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function LinkBox({ label, value, onCopy }: { label: string; value: string; onCopy: () => void }) {
+  return (
+    <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-stone-100">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400">{label}</label>
+        <button type="button" onClick={onCopy} className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-brand">
+          <Copy className="h-4 w-4" />
+          Copiar
+        </button>
+      </div>
+      <input value={value} readOnly className="input-field" />
     </div>
   );
 }
