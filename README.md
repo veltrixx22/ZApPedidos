@@ -47,3 +47,19 @@ service cloud.firestore {
 ```
 
 Warning: These rules are for MVP testing only. Before scaling, secure writes with authentication or server-side validation.
+
+## Temporary Firebase Storage rules for MVP testing
+
+```txt
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /products/{storeId}/{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}
+```
+
+Warning: These Storage rules are for MVP testing only. Before scaling, secure uploads with authentication and file validation.

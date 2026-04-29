@@ -12,3 +12,7 @@
 [2m13:05:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdist/index.html[22m
 [2m13:16:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdist/index.html[22m
 [2m13:16:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m13:41:19[22m [36m[1m[vite][22m[39m changed tsconfig file detected: C:/Users/diego/Desktop/Nova pasta (3)/tsconfig.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+[2m13:41:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m13:41:43[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdist/index.html[22m
+[2m13:41:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdist/index.html[22m

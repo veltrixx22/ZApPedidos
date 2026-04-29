@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ChangeEvent, ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Copy, Edit3, ExternalLink, Eye, EyeOff, Plus, Save, Trash2, X } from 'lucide-react';
+import { Camera, CheckCircle2, Copy, Edit3, ExternalLink, Eye, EyeOff, ImageIcon, Plus, Save, Trash2, X } from 'lucide-react';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { storage } from '../lib/firebase';
 import { dbService } from '../services/dbService';
 import type { Product, Store } from '../types';
 
@@ -13,6 +15,8 @@ const emptyProduct = {
   category: '',
   isActive: true,
 };
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 export default function AdminPage() {
   const { slug = '' } = useParams<{ slug: string }>();
@@ -95,6 +99,7 @@ function Dashboard({ store, products, onRefresh }: { store: Store; products: Pro
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [copyStatus, setCopyStatus] = useState('');
   const menuUrl = `${window.location.origin}/loja/${store.slug}`;
 
   const grouped: Record<string, Product[]> = useMemo(() => {
@@ -114,7 +119,29 @@ function Dashboard({ store, products, onRefresh }: { store: Store; products: Pro
     setSavingSettings(false);
   };
 
-  const copyLink = () => navigator.clipboard.writeText(menuUrl);
+  const copyMenuLink = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(menuUrl);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = menuUrl;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+      }
+
+      setCopyStatus('Link copiado!');
+    } catch (error) {
+      console.error('Copy link error:', error);
+      setCopyStatus('Não foi possível copiar. Copie manualmente.');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-bg-site px-6 py-8">
@@ -125,11 +152,17 @@ function Dashboard({ store, products, onRefresh }: { store: Store; products: Pro
             <h1 className="mt-2 text-5xl font-black tracking-tight">{store.businessName}</h1>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <button onClick={copyLink} className="btn-secondary"><Copy className="h-4 w-4" /> Copiar link</button>
+            <button onClick={copyMenuLink} className="btn-secondary"><Copy className="h-4 w-4" /> Copiar link</button>
             <Link to={`/loja/${store.slug}`} target="_blank" className="btn-secondary"><ExternalLink className="h-4 w-4" /> Ver cardapio</Link>
             <button onClick={() => { setEditingProduct(null); setModalOpen(true); }} className="btn-primary"><Plus className="h-4 w-4" /> Produto</button>
           </div>
         </header>
+
+        <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-stone-100">
+          <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-stone-400">Link publico do cardapio</label>
+          <input value={menuUrl} readOnly className="input-field" />
+          {copyStatus && <p className="mt-3 text-sm font-bold text-stone-600">{copyStatus}</p>}
+        </div>
 
         <form onSubmit={saveSettings} className="grid gap-4 rounded-[32px] bg-white p-6 shadow-sm ring-1 ring-stone-100 md:grid-cols-[1fr_220px_auto]">
           <input value={settings.businessName} onChange={event => setSettings({ ...settings, businessName: event.target.value })} className="input-field" />
@@ -223,6 +256,43 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
     isActive: product?.isActive ?? emptyProduct.isActive,
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(product?.imageUrl ? 'Imagem enviada com sucesso' : '');
+  const [uploadError, setUploadError] = useState('');
+
+  const handleImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadError('');
+    setUploadStatus('');
+
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Selecione um arquivo de imagem.');
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      setUploadError('A imagem deve ter no maximo 5MB.');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+      const imageRef = ref(storage, `products/${storeId}/${Date.now()}-${safeFileName}`);
+      await uploadBytes(imageRef, file, { contentType: file.type });
+      const imageUrl = await getDownloadURL(imageRef);
+      setFormData(current => ({ ...current, imageUrl }));
+      setUploadStatus('Imagem enviada com sucesso');
+    } catch (error) {
+      console.error('Product image upload error:', error);
+      setUploadError('Nao foi possivel enviar a imagem. Verifique o Firebase Storage.');
+    } finally {
+      setUploadingImage(false);
+      event.target.value = '';
+    }
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -256,12 +326,45 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
             <input required value={formData.category} onChange={event => setFormData({ ...formData, category: event.target.value })} placeholder="Categoria" className="input-field" />
           </div>
           <textarea value={formData.description} onChange={event => setFormData({ ...formData, description: event.target.value })} placeholder="Descricao" rows={3} className="input-field resize-none" />
-          <input value={formData.imageUrl} onChange={event => setFormData({ ...formData, imageUrl: event.target.value })} placeholder="Link da imagem" className="input-field" />
+
+          <div className="rounded-[28px] bg-stone-50 p-4 ring-1 ring-stone-100">
+            <label className="flex cursor-pointer items-center justify-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-black uppercase tracking-widest text-stone-800 shadow-sm ring-1 ring-stone-200">
+              <Camera className="h-5 w-5 text-brand" />
+              {uploadingImage ? 'Enviando imagem...' : 'Selecionar ou tirar foto'}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleImageChange}
+                disabled={uploadingImage || saving}
+                className="sr-only"
+              />
+            </label>
+
+            {formData.imageUrl ? (
+              <div className="mt-4 overflow-hidden rounded-3xl bg-white">
+                <img src={formData.imageUrl} alt="Preview do produto" className="h-52 w-full object-cover" />
+              </div>
+            ) : (
+              <div className="mt-4 flex h-40 items-center justify-center rounded-3xl bg-white text-stone-300">
+                <ImageIcon className="h-10 w-10" />
+              </div>
+            )}
+
+            {uploadStatus && (
+              <p className="mt-3 flex items-center gap-2 text-sm font-bold text-green-600">
+                <CheckCircle2 className="h-4 w-4" />
+                {uploadStatus}
+              </p>
+            )}
+            {uploadError && <p className="mt-3 text-sm font-bold text-red-600">{uploadError}</p>}
+          </div>
+
           <label className="flex items-center gap-3 font-bold text-stone-600">
             <input type="checkbox" checked={formData.isActive} onChange={event => setFormData({ ...formData, isActive: event.target.checked })} />
             Produto ativo
           </label>
-          <button disabled={saving} className="btn-primary w-full justify-center">{saving ? 'Salvando...' : 'Salvar produto'}</button>
+          <button disabled={saving || uploadingImage} className="btn-primary w-full justify-center">{saving ? 'Salvando...' : uploadingImage ? 'Enviando imagem...' : 'Salvar produto'}</button>
         </div>
       </form>
     </div>
