@@ -17,6 +17,18 @@ const emptyProduct = {
 };
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const IMAGE_UPLOAD_TIMEOUT_MS = 30000;
+
+function withUploadTimeout<T>(promise: Promise<T>): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => {
+        reject(new Error(`Upload demorou mais de ${IMAGE_UPLOAD_TIMEOUT_MS / 1000}s. Tente novamente ou cole um link da imagem.`));
+      }, IMAGE_UPLOAD_TIMEOUT_MS);
+    }),
+  ]);
+}
 
 export default function AdminPage() {
   const { slug = '' } = useParams<{ slug: string }>();
@@ -259,6 +271,8 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(product?.imageUrl ? 'Imagem enviada com sucesso' : '');
   const [uploadError, setUploadError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [manualImageUrl, setManualImageUrl] = useState('');
 
   const handleImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -266,6 +280,11 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
 
     setUploadError('');
     setUploadStatus('');
+
+    if (!import.meta.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) {
+      setUploadError('Firebase Storage não configurado. Verifique NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET na Vercel.');
+      return;
+    }
 
     if (!file.type.startsWith('image/')) {
       setUploadError('Selecione um arquivo de imagem.');
@@ -280,14 +299,17 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
     setUploadingImage(true);
     try {
       const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
-      const imageRef = ref(storage, `products/${storeId}/${Date.now()}-${safeFileName}`);
-      await uploadBytes(imageRef, file, { contentType: file.type });
-      const imageUrl = await getDownloadURL(imageRef);
+      const filePath = `products/${storeId}/${Date.now()}-${safeFileName}`;
+      const imageRef = ref(storage, filePath);
+      await withUploadTimeout(uploadBytes(imageRef, file));
+      const imageUrl = await withUploadTimeout(getDownloadURL(imageRef));
       setFormData(current => ({ ...current, imageUrl }));
       setUploadStatus('Imagem enviada com sucesso');
-    } catch (error) {
-      console.error('Product image upload error:', error);
-      setUploadError('Nao foi possivel enviar a imagem. Verifique o Firebase Storage.');
+    } catch (error: any) {
+      console.error('Image upload error:', error);
+      const code = error?.code || 'unknown';
+      const message = error?.message || 'Erro desconhecido';
+      setUploadError(`Erro ao enviar imagem: ${code} - ${message}`);
     } finally {
       setUploadingImage(false);
       event.target.value = '';
@@ -297,19 +319,27 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
-    const payload = {
-      storeId,
-      name: formData.name.trim(),
-      description: formData.description.trim(),
-      price: Number(formData.price.replace(',', '.')),
-      imageUrl: formData.imageUrl.trim(),
-      category: formData.category.trim() || 'Geral',
-      isActive: formData.isActive,
-    };
-    if (product) await dbService.updateProduct(product.id, payload);
-    else await dbService.addProduct(payload);
-    setSaving(false);
-    onSaved();
+    setSaveError('');
+
+    try {
+      const payload = {
+        storeId,
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        price: Number(formData.price.replace(',', '.')),
+        imageUrl: formData.imageUrl.trim() || manualImageUrl.trim() || '',
+        category: formData.category.trim() || 'Geral',
+        isActive: formData.isActive,
+      };
+      if (product) await dbService.updateProduct(product.id, payload);
+      else await dbService.addProduct(payload);
+      onSaved();
+    } catch (error: any) {
+      console.error('Save product error:', error);
+      setSaveError(error?.message || 'Nao foi possivel salvar o produto.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -341,9 +371,9 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
               />
             </label>
 
-            {formData.imageUrl ? (
+            {formData.imageUrl || manualImageUrl ? (
               <div className="mt-4 overflow-hidden rounded-3xl bg-white">
-                <img src={formData.imageUrl} alt="Preview do produto" className="h-52 w-full object-cover" />
+                <img src={formData.imageUrl || manualImageUrl} alt="Preview do produto" className="h-52 w-full object-cover" />
               </div>
             ) : (
               <div className="mt-4 flex h-40 items-center justify-center rounded-3xl bg-white text-stone-300">
@@ -360,11 +390,22 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
             {uploadError && <p className="mt-3 text-sm font-bold text-red-600">{uploadError}</p>}
           </div>
 
+          <label className="block">
+            <span className="mb-2 block pl-2 text-[10px] font-black uppercase tracking-widest text-stone-400">Ou cole um link da imagem</span>
+            <input
+              value={manualImageUrl}
+              onChange={event => setManualImageUrl(event.target.value)}
+              placeholder="https://exemplo.com/foto.jpg"
+              className="input-field"
+            />
+          </label>
+
           <label className="flex items-center gap-3 font-bold text-stone-600">
             <input type="checkbox" checked={formData.isActive} onChange={event => setFormData({ ...formData, isActive: event.target.checked })} />
             Produto ativo
           </label>
-          <button disabled={saving || uploadingImage} className="btn-primary w-full justify-center">{saving ? 'Salvando...' : uploadingImage ? 'Enviando imagem...' : 'Salvar produto'}</button>
+          {saveError && <p className="text-sm font-bold text-red-600">{saveError}</p>}
+          <button disabled={saving} className="btn-primary w-full justify-center">{saving ? 'Salvando...' : 'Salvar produto'}</button>
         </div>
       </form>
     </div>
