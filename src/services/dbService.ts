@@ -1,9 +1,11 @@
 import {
+  addDoc,
   collection,
   deleteDoc,
   doc,
   getDocs,
   query,
+  serverTimestamp,
   setDoc,
   updateDoc,
   where,
@@ -16,14 +18,35 @@ import type { Product, Store } from '../types';
 type StoreInput = Pick<Store, 'businessName' | 'whatsappNumber' | 'slug' | 'adminCode'>;
 type ProductInput = Omit<Product, 'id' | 'createdAt' | 'updatedAt'>;
 
-const normalizeSlug = (slug: string) => slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+const FIRESTORE_TIMEOUT_MS = 15000;
+
+export const normalizeSlug = (slug: string) => slug
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .trim()
+  .replace(/\s+/g, '-')
+  .replace(/[^a-z0-9-]/g, '-')
+  .replace(/-+/g, '-')
+  .replace(/^-|-$/g, '');
+
+function withTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => {
+        reject(new Error(`${operation} demorou mais de ${FIRESTORE_TIMEOUT_MS / 1000}s. Verifique a conexão e as regras do Firestore.`));
+      }, FIRESTORE_TIMEOUT_MS);
+    }),
+  ]);
+}
 
 export const dbService = {
   async getStoreBySlug(slug: string): Promise<Store | null> {
     const path = 'stores';
     try {
       const q = query(collection(db, path), where('slug', '==', normalizeSlug(slug)));
-      const snapshot = await getDocs(q);
+      const snapshot = await withTimeout(getDocs(q), 'Buscar loja por slug');
       if (snapshot.empty) return null;
       const storeDoc = snapshot.docs[0];
       return { id: storeDoc.id, ...storeDoc.data() } as Store;
@@ -41,17 +64,21 @@ export const dbService = {
   async createStore(store: StoreInput): Promise<string> {
     const path = 'stores';
     try {
-      const storeRef = doc(collection(db, path));
-      const now = Date.now();
+      const slug = normalizeSlug(store.slug);
+      const existingStore = await this.getStoreBySlug(slug);
+      if (existingStore) {
+        throw new Error('Esse link de loja já está em uso. Escolha outro.');
+      }
+
       // TODO: This no-login adminCode access is for MVP validation only. Before scaling, replace with Firebase Auth and hashed admin codes or proper owner authentication.
-      await setDoc(storeRef, {
-        ...store,
-        slug: normalizeSlug(store.slug),
+      const storeRef = await withTimeout(addDoc(collection(db, path), {
+        businessName: store.businessName.trim(),
         whatsappNumber: store.whatsappNumber.replace(/\D/g, ''),
+        slug,
         adminCode: store.adminCode.trim(),
-        createdAt: now,
-        updatedAt: now,
-      });
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }), 'Criar loja');
       return storeRef.id;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);

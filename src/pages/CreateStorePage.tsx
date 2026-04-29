@@ -2,9 +2,13 @@ import { FormEvent, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Store, Zap } from 'lucide-react';
-import { dbService } from '../services/dbService';
+import { getMissingFirebaseEnv } from '../lib/firebase';
+import { dbService, normalizeSlug } from '../services/dbService';
 
-const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  return String(error);
+};
 
 export default function CreateStorePage() {
   const navigate = useNavigate();
@@ -17,36 +21,36 @@ export default function CreateStorePage() {
 
   const handleBusinessNameChange = (value: string) => {
     setBusinessName(value);
-    if (!slug) setSlug(slugify(value));
+    if (!slug) setSlug(normalizeSlug(value));
   };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
-
-    const cleanSlug = slugify(slug);
-    const cleanNumber = whatsappNumber.replace(/\D/g, '');
-
-    if (!businessName.trim() || !cleanNumber || !cleanSlug || !adminCode.trim()) {
-      setError('Preencha todos os campos para criar sua loja.');
-      return;
-    }
-
-    if (cleanNumber.length < 10) {
-      setError('Informe um WhatsApp com DDD.');
-      return;
-    }
-
-    if (adminCode.trim().length < 4) {
-      setError('Use um codigo de admin com pelo menos 4 caracteres.');
-      return;
-    }
-
     setLoading(true);
+
     try {
-      const available = await dbService.checkStoreSlugAvailability(cleanSlug);
-      if (!available) {
-        setError('Este link ja esta em uso. Escolha outro.');
+      const missingEnv = getMissingFirebaseEnv();
+      if (missingEnv.length > 0) {
+        setError('Configuração do Firebase ausente. Adicione as variáveis na Vercel e faça redeploy.');
+        return;
+      }
+
+      const cleanSlug = normalizeSlug(slug);
+      const cleanNumber = whatsappNumber.replace(/\D/g, '');
+
+      if (!businessName.trim() || !cleanNumber || !cleanSlug || !adminCode.trim()) {
+        setError('Preencha todos os campos para criar sua loja.');
+        return;
+      }
+
+      if (cleanNumber.length < 10) {
+        setError('Informe um WhatsApp com DDD.');
+        return;
+      }
+
+      if (adminCode.trim().length < 4) {
+        setError('Use um codigo de admin com pelo menos 4 caracteres.');
         return;
       }
 
@@ -59,9 +63,16 @@ export default function CreateStorePage() {
 
       localStorage.setItem(`zappedido_admin_${cleanSlug}`, 'true');
       navigate(`/admin/${cleanSlug}`);
-    } catch (err) {
-      console.error(err);
-      setError('Nao foi possivel criar a loja agora.');
+    } catch (error) {
+      console.error('Create store error:', error);
+      const message = getErrorMessage(error);
+      if (message.includes('Esse link de loja já está em uso')) {
+        setError('Esse link de loja já está em uso. Escolha outro.');
+      } else if (import.meta.env.DEV) {
+        setError(message);
+      } else {
+        setError('Não foi possível criar a loja. Verifique a configuração do Firebase/Firestore.');
+      }
     } finally {
       setLoading(false);
     }
@@ -118,7 +129,7 @@ export default function CreateStorePage() {
                 <span className="border-r border-stone-200 px-5 py-4 text-xs font-black uppercase tracking-widest text-stone-400">loja/</span>
                 <input
                   value={slug}
-                  onChange={event => setSlug(slugify(event.target.value))}
+                  onChange={event => setSlug(normalizeSlug(event.target.value))}
                   placeholder="minha-loja"
                   className="w-full bg-transparent px-5 py-4 font-black outline-none"
                 />
@@ -143,7 +154,7 @@ export default function CreateStorePage() {
               disabled={loading}
               className="flex w-full items-center justify-center gap-3 rounded-[28px] bg-brand px-8 py-5 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-orange-200 transition hover:bg-orange-600 disabled:opacity-60"
             >
-              {loading ? 'Criando...' : 'Criar loja agora'}
+              {loading ? 'Criando...' : 'Criar loja'}
               <Zap className="h-5 w-5 fill-current" />
             </button>
           </form>

@@ -1,20 +1,49 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# ZapPedido MVP
 
-# Run and deploy your AI Studio app
+No-login MVP for creating a public digital menu and receiving orders on WhatsApp.
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/c8d4f678-1f47-4be0-a37a-e392f192da9c
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
+## Run locally
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+
+```bash
+npm install
+```
+
+2. Create `.env.local` with Firebase client variables:
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_measurement_id
+```
+
+3. Start the app:
+
+```bash
+npm run dev
+```
+
+## Temporary Firestore rules for MVP testing
+
+```txt
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /stores/{storeId} {
+      allow read, write: if true;
+    }
+
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+  }
+}
+```
+
+Warning: These rules are for MVP testing only. Before scaling, secure writes with authentication or server-side validation.

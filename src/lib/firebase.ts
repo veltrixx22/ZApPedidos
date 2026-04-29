@@ -1,5 +1,5 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getApp, getApps, initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,17 +11,21 @@ const firebaseConfig = {
   measurementId: import.meta.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+export const requiredFirebaseEnv = [
+  'NEXT_PUBLIC_FIREBASE_API_KEY',
+  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+  'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
+  'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+  'NEXT_PUBLIC_FIREBASE_APP_ID',
+] as const;
 
-// Simple connection test
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration or connectivity.");
-    }
-  }
+export function getMissingFirebaseEnv() {
+  return requiredFirebaseEnv.filter(key => {
+    const value = import.meta.env[key];
+    return !value || value.trim() === '' || value === 'sua_api_key';
+  });
 }
-testConnection();
+
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+export const db = getFirestore(app);
