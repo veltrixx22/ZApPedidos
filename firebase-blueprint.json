@@ -1,0 +1,47 @@
+{
+  "entities": {
+    "Profile": {
+      "title": "Profile",
+      "description": "Store owner profile and business settings",
+      "type": "object",
+      "properties": {
+        "businessName": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "slug": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["businessName", "whatsappNumber", "slug", "ownerId"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Product in the menu",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "price", "category", "isActive"]
+    }
+  },
+  "firestore": {
+    "/profiles/{profileId}": {
+      "schema": "Profile",
+      "description": "User profiles indexed by UID"
+    },
+    "/slugs/{slug}": {
+      "schema": { "type": "object", "properties": { "ownerId": { "type": "string" } } },
+      "description": "Lookup table for slug uniqueness"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Products for all users"
+    }
+  }
+}

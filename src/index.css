@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  
+  --color-brand: #f97316; /* Orange-500 */
+  --color-whatsapp: #25d366;
+  --color-bg-site: #fafaf9;
+}
+
+@layer base {
+  body {
+    @apply bg-bg-site text-stone-900 antialiased font-sans transition-colors duration-300;
+  }
+  
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tighter;
+  }
+}
+
+.font-black-italic {
+  font-weight: 900;
+  font-style: italic;
+}
+
