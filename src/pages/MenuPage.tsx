@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ChevronRight, Minus, Plus, ShoppingBag, X, Zap } from 'lucide-react';
+import { ChevronRight, ImageIcon, Minus, Plus, ShoppingBag, X, Zap } from 'lucide-react';
 import { dbService } from '../services/dbService';
 import type { CartItem, Product, Store } from '../types';
 
@@ -132,9 +132,9 @@ export default function MenuPage() {
 function ProductCard({ product, onAdd }: { key?: string; product: Product; onAdd: () => void }) {
   return (
     <article className="flex gap-4 rounded-[28px] bg-white p-3 ring-1 ring-stone-100">
-      {product.imageUrl && (
-        <img src={product.imageUrl} alt={product.name} className="h-24 w-24 rounded-3xl object-cover" />
-      )}
+      <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-3xl bg-stone-100">
+        <ImageWithFallback src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+      </div>
       <div className="min-w-0 flex-1 py-1">
         <h3 className="text-lg font-black leading-tight">{product.name}</h3>
         <p className="mt-1 line-clamp-2 text-sm font-medium text-stone-500">{product.description}</p>
@@ -146,6 +146,40 @@ function ProductCard({ product, onAdd }: { key?: string; product: Product; onAdd
         </div>
       </div>
     </article>
+  );
+}
+
+function ImageWithFallback({ src, alt, className }: { src?: string; alt: string; className: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+    setImageFailed(false);
+  }, [src]);
+
+  if (!src || imageFailed) {
+    return (
+      <div className={`${className} flex items-center justify-center bg-stone-100 text-stone-300`}>
+        <ImageIcon className="h-7 w-7" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-full w-full">
+      {!loaded && <div className="absolute inset-0 bg-stone-100" />}
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+          setLoaded(true);
+          setImageFailed(true);
+        }}
+      />
+    </div>
   );
 }
 

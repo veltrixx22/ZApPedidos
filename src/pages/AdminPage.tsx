@@ -92,12 +92,7 @@ export default function AdminPage() {
           <p className="mt-3 font-medium text-stone-500">Digite o codigo de admin da loja {store.businessName}.</p>
           {error && <p className="mt-5 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-600">{error}</p>}
           <form onSubmit={handleUnlock} className="mt-6 space-y-4">
-            <input
-              value={adminCode}
-              onChange={event => setAdminCode(event.target.value)}
-              placeholder="Codigo de admin"
-              className="input-field"
-            />
+            <input value={adminCode} onChange={event => setAdminCode(event.target.value)} placeholder="Codigo de admin" className="input-field" />
             <button className="w-full rounded-[24px] bg-stone-900 px-6 py-4 font-black uppercase tracking-widest text-white">
               Desbloquear painel
             </button>
@@ -155,11 +150,10 @@ function Dashboard({ store, products, onRefresh, onClearAccess }: { store: Store
         document.execCommand('copy');
         textArea.remove();
       }
-
       setCopyStatus(`${label} copiado!`);
     } catch (error) {
       console.error('Copy link error:', error);
-      setCopyStatus('Não foi possível copiar. Copie manualmente.');
+      setCopyStatus('Nao foi possivel copiar. Copie manualmente.');
     }
   };
 
@@ -248,7 +242,7 @@ function ProductCard({ product, onEdit, onDelete, onToggle }: { key?: string; pr
     <div className={`rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-stone-100 ${product.isActive ? '' : 'opacity-60'}`}>
       <div className="flex gap-4">
         <div className="h-20 w-20 overflow-hidden rounded-2xl bg-stone-100">
-          {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" /> : null}
+          <ImageWithFallback src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-black">{product.name}</p>
@@ -284,60 +278,106 @@ function LinkBox({ label, value, onCopy }: { label: string; value: string; onCop
   );
 }
 
+function ImageWithFallback({ src, alt, className }: { src?: string; alt: string; className: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+    setImageFailed(false);
+  }, [src]);
+
+  if (!src || imageFailed) {
+    return (
+      <div className={`${className} flex items-center justify-center bg-stone-100 text-stone-300`}>
+        <ImageIcon className="h-7 w-7" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-full w-full">
+      {!loaded && <div className="absolute inset-0 bg-stone-100" />}
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+          setLoaded(true);
+          setImageFailed(true);
+        }}
+      />
+    </div>
+  );
+}
+
 function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string; product: Product | null; onClose: () => void; onSaved: () => void }) {
   const [formData, setFormData] = useState({
     name: product?.name || emptyProduct.name,
     description: product?.description || emptyProduct.description,
     price: product ? String(product.price).replace('.', ',') : emptyProduct.price,
-    imageUrl: product?.imageUrl || emptyProduct.imageUrl,
     category: product?.category || emptyProduct.category,
     isActive: product?.isActive ?? emptyProduct.isActive,
   });
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState(product?.imageUrl ? 'Imagem enviada com sucesso' : '');
-  const [uploadError, setUploadError] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState(product?.imageUrl || '');
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState('');
+  const [uploadedImageUrl, setUploadedImageUrl] = useState(product?.imageUrl || '');
   const [saveError, setSaveError] = useState('');
   const [manualImageUrl, setManualImageUrl] = useState('');
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   const handleImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setUploadError('');
-    setUploadStatus('');
-
-    if (!import.meta.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) {
-      setUploadError('Firebase Storage não configurado. Verifique NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET na Vercel.');
-      return;
-    }
+    setImageUploadError('');
 
     if (!file.type.startsWith('image/')) {
-      setUploadError('Selecione um arquivo de imagem.');
+      setImageUploadError('Selecione um arquivo de imagem.');
       return;
     }
 
     if (file.size > MAX_IMAGE_SIZE) {
-      setUploadError('A imagem deve ter no maximo 5MB.');
+      setImageUploadError('A imagem deve ter no maximo 5MB.');
       return;
     }
 
-    setUploadingImage(true);
+    const previewUrl = URL.createObjectURL(file);
+    setSelectedFile(file);
+    setImagePreview(previewUrl);
+
+    if (!import.meta.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) {
+      setImageUploadError('Firebase Storage não configurado. Verifique NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET na Vercel.');
+      return;
+    }
+
     try {
+      setImageUploading(true);
+      setImageUploadError('');
       const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
       const filePath = `products/${storeId}/${Date.now()}-${safeFileName}`;
-      const imageRef = ref(storage, filePath);
-      await withUploadTimeout(uploadBytes(imageRef, file));
-      const imageUrl = await withUploadTimeout(getDownloadURL(imageRef));
-      setFormData(current => ({ ...current, imageUrl }));
-      setUploadStatus('Imagem enviada com sucesso');
+      const storageRef = ref(storage, filePath);
+      await withUploadTimeout(uploadBytes(storageRef, file));
+      const downloadUrl = await withUploadTimeout(getDownloadURL(storageRef));
+      setUploadedImageUrl(downloadUrl);
     } catch (error: any) {
       console.error('Image upload error:', error);
       const code = error?.code || 'unknown';
       const message = error?.message || 'Erro desconhecido';
-      setUploadError(`Erro ao enviar imagem: ${code} - ${message}`);
+      setImageUploadError(`Erro ao enviar imagem: ${code} - ${message}`);
     } finally {
-      setUploadingImage(false);
+      setImageUploading(false);
       event.target.value = '';
     }
   };
@@ -353,7 +393,7 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
         name: formData.name.trim(),
         description: formData.description.trim(),
         price: Number(formData.price.replace(',', '.')),
-        imageUrl: formData.imageUrl.trim() || manualImageUrl.trim() || '',
+        imageUrl: uploadedImageUrl || manualImageUrl.trim() || product?.imageUrl || '',
         category: formData.category.trim() || 'Geral',
         isActive: formData.isActive,
       };
@@ -375,6 +415,7 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
           <h2 className="text-3xl font-black">{product ? 'Editar produto' : 'Novo produto'}</h2>
           <button type="button" onClick={onClose} className="icon-button"><X className="h-5 w-5" /></button>
         </div>
+
         <div className="space-y-4">
           <input required value={formData.name} onChange={event => setFormData({ ...formData, name: event.target.value })} placeholder="Nome" className="input-field" />
           <div className="grid grid-cols-2 gap-4">
@@ -386,20 +427,13 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
           <div className="rounded-[28px] bg-stone-50 p-4 ring-1 ring-stone-100">
             <label className="flex cursor-pointer items-center justify-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-black uppercase tracking-widest text-stone-800 shadow-sm ring-1 ring-stone-200">
               <Camera className="h-5 w-5 text-brand" />
-              {uploadingImage ? 'Enviando imagem...' : 'Selecionar ou tirar foto'}
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleImageChange}
-                disabled={uploadingImage || saving}
-                className="sr-only"
-              />
+              Selecionar ou tirar foto
+              <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} disabled={saving} className="sr-only" />
             </label>
 
-            {formData.imageUrl || manualImageUrl ? (
+            {imagePreview || manualImageUrl ? (
               <div className="mt-4 overflow-hidden rounded-3xl bg-white">
-                <img src={formData.imageUrl || manualImageUrl} alt="Preview do produto" className="h-52 w-full object-cover" />
+                <ImageWithFallback src={imagePreview || manualImageUrl} alt="Preview do produto" className="h-52 w-full object-cover" />
               </div>
             ) : (
               <div className="mt-4 flex h-40 items-center justify-center rounded-3xl bg-white text-stone-300">
@@ -407,23 +441,19 @@ function ProductModal({ storeId, product, onClose, onSaved }: { storeId: string;
               </div>
             )}
 
-            {uploadStatus && (
+            {selectedFile && imageUploading && <p className="mt-3 text-sm font-bold text-stone-600">Enviando imagem...</p>}
+            {uploadedImageUrl && !imageUploading && (
               <p className="mt-3 flex items-center gap-2 text-sm font-bold text-green-600">
                 <CheckCircle2 className="h-4 w-4" />
-                {uploadStatus}
+                Imagem pronta
               </p>
             )}
-            {uploadError && <p className="mt-3 text-sm font-bold text-red-600">{uploadError}</p>}
+            {imageUploadError && <p className="mt-3 text-sm font-bold text-red-600">{imageUploadError}</p>}
           </div>
 
           <label className="block">
-            <span className="mb-2 block pl-2 text-[10px] font-black uppercase tracking-widest text-stone-400">Ou cole um link da imagem</span>
-            <input
-              value={manualImageUrl}
-              onChange={event => setManualImageUrl(event.target.value)}
-              placeholder="https://exemplo.com/foto.jpg"
-              className="input-field"
-            />
+            <span className="mb-2 block pl-2 text-[10px] font-black uppercase tracking-widest text-stone-400">Ou cole o link da imagem</span>
+            <input value={manualImageUrl} onChange={event => setManualImageUrl(event.target.value)} placeholder="https://exemplo.com/foto.jpg" className="input-field" />
           </label>
 
           <label className="flex items-center gap-3 font-bold text-stone-600">
