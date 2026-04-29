@@ -4,6 +4,7 @@ export interface Store {
   whatsappNumber: string;
   slug: string;
   adminCode: string;
+  deliveryFee: number;
   createdAt: number;
   updatedAt: number;
 }

@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Camera, CheckCircle2, Copy, Edit3, ExternalLink, Eye, EyeOff, ImageIcon, Plus, Save, Trash2, X } from 'lucide-react';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { storage } from '../lib/firebase';
+import { formatCurrency, parseCurrency } from '../lib/currency';
 import { dbService } from '../services/dbService';
 import type { Product, Store } from '../types';
 
@@ -109,6 +110,7 @@ function Dashboard({ store, products, onRefresh, onClearAccess }: { store: Store
   const [settings, setSettings] = useState({
     businessName: store.businessName,
     whatsappNumber: store.whatsappNumber,
+    deliveryFee: String(store.deliveryFee || 0).replace('.', ','),
   });
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -129,7 +131,11 @@ function Dashboard({ store, products, onRefresh, onClearAccess }: { store: Store
   const saveSettings = async (event: FormEvent) => {
     event.preventDefault();
     setSavingSettings(true);
-    await dbService.updateStore(store.id, settings);
+    await dbService.updateStore(store.id, {
+      businessName: settings.businessName,
+      whatsappNumber: settings.whatsappNumber,
+      deliveryFee: parseCurrency(settings.deliveryFee),
+    });
     await onRefresh();
     setSavingSettings(false);
   };
@@ -181,10 +187,26 @@ function Dashboard({ store, products, onRefresh, onClearAccess }: { store: Store
           {copyStatus && <p className="text-sm font-bold text-stone-600">{copyStatus}</p>}
         </div>
 
-        <form onSubmit={saveSettings} className="grid gap-4 rounded-[32px] bg-white p-6 shadow-sm ring-1 ring-stone-100 md:grid-cols-[1fr_220px_auto]">
-          <input value={settings.businessName} onChange={event => setSettings({ ...settings, businessName: event.target.value })} className="input-field" />
-          <input value={settings.whatsappNumber} onChange={event => setSettings({ ...settings, whatsappNumber: event.target.value })} className="input-field" />
-          <button disabled={savingSettings} className="btn-primary"><Save className="h-4 w-4" /> {savingSettings ? 'Salvando' : 'Salvar'}</button>
+        <form onSubmit={saveSettings} className="grid gap-4 rounded-[32px] bg-white p-6 shadow-sm ring-1 ring-stone-100 md:grid-cols-[1fr_220px_180px_auto]">
+          <label className="block">
+            <span className="mb-2 block pl-2 text-[10px] font-black uppercase tracking-widest text-stone-400">Nome da loja</span>
+            <input value={settings.businessName} onChange={event => setSettings({ ...settings, businessName: event.target.value })} className="input-field" />
+          </label>
+          <label className="block">
+            <span className="mb-2 block pl-2 text-[10px] font-black uppercase tracking-widest text-stone-400">WhatsApp</span>
+            <input value={settings.whatsappNumber} onChange={event => setSettings({ ...settings, whatsappNumber: event.target.value })} className="input-field" />
+          </label>
+          <label className="block">
+            <span className="mb-2 block pl-2 text-[10px] font-black uppercase tracking-widest text-stone-400">Taxa de entrega</span>
+            <input
+              value={settings.deliveryFee}
+              onChange={event => setSettings({ ...settings, deliveryFee: event.target.value })}
+              placeholder="Ex: 5,00"
+              className="input-field"
+            />
+            <span className="mt-2 block pl-2 text-xs font-bold text-stone-400">Use 0 para entrega grátis ou retirada no local.</span>
+          </label>
+          <button disabled={savingSettings} className="btn-primary self-end"><Save className="h-4 w-4" /> {savingSettings ? 'Salvando' : 'Salvar'}</button>
         </form>
 
         {products.length === 0 ? (
@@ -481,8 +503,4 @@ function Loading({ text }: { text: string }) {
       </div>
     </Centered>
   );
-}
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }

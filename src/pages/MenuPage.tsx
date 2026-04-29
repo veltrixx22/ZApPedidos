@@ -1,10 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ChevronRight, ImageIcon, Minus, Plus, ShoppingBag, X, Zap } from 'lucide-react';
+import { formatCurrency } from '../lib/currency';
 import { dbService } from '../services/dbService';
 import type { CartItem, Product, Store } from '../types';
-
-const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 export default function MenuPage() {
   const { slug = '' } = useParams<{ slug: string }>();
@@ -27,6 +26,8 @@ export default function MenuPage() {
 
   const categories = useMemo(() => Array.from(new Set(products.map(product => product.category || 'Geral'))).sort(), [products]);
   const cartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+  const deliveryFee = Number(store?.deliveryFee || 0);
+  const orderTotal = cartTotal + deliveryFee;
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
 
   const addToCart = (product: Product) => {
@@ -110,7 +111,7 @@ export default function MenuPage() {
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-brand">{cartCount}</span>
               Ver sacola
             </span>
-            <span className="flex items-center gap-2">{formatCurrency(cartTotal)} <ChevronRight className="h-5 w-5" /></span>
+            <span className="flex items-center gap-2">{formatCurrency(orderTotal)} <ChevronRight className="h-5 w-5" /></span>
           </button>
         </div>
       )}
@@ -119,7 +120,8 @@ export default function MenuPage() {
         <Checkout
           store={store}
           cart={cart}
-          cartTotal={cartTotal}
+          subtotal={cartTotal}
+          deliveryFee={deliveryFee}
           onClose={() => setCheckoutOpen(false)}
           onAdd={addToCart}
           onRemove={removeFromCart}
@@ -183,7 +185,7 @@ function ImageWithFallback({ src, alt, className }: { src?: string; alt: string;
   );
 }
 
-function Checkout({ store, cart, cartTotal, onClose, onAdd, onRemove }: { store: Store; cart: CartItem[]; cartTotal: number; onClose: () => void; onAdd: (product: Product) => void; onRemove: (id: string) => void }) {
+function Checkout({ store, cart, subtotal, deliveryFee, onClose, onAdd, onRemove }: { store: Store; cart: CartItem[]; subtotal: number; deliveryFee: number; onClose: () => void; onAdd: (product: Product) => void; onRemove: (id: string) => void }) {
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('PIX');
@@ -197,8 +199,10 @@ function Checkout({ store, cart, cartTotal, onClose, onAdd, onRemove }: { store:
       setError('Informe nome e endereco para finalizar.');
       return;
     }
-    window.open(generateWhatsAppLink({ store, cart, cartTotal, customerName, address, paymentMethod, notes }), '_blank');
+    window.open(generateWhatsAppLink({ store, cart, subtotal, deliveryFee, customerName, address, paymentMethod, notes }), '_blank');
   };
+
+  const total = subtotal + deliveryFee;
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-stone-950/60 backdrop-blur-sm sm:items-center sm:p-6">
@@ -224,9 +228,19 @@ function Checkout({ store, cart, cartTotal, onClose, onAdd, onRemove }: { store:
           ))}
         </div>
 
-        <div className="my-6 flex items-center justify-between border-y border-stone-100 py-5 text-xl font-black">
-          <span>Total</span>
-          <span className="text-brand">{formatCurrency(cartTotal)}</span>
+        <div className="my-6 space-y-3 border-y border-stone-100 py-5">
+          <div className="flex items-center justify-between text-sm font-bold text-stone-500">
+            <span>Subtotal</span>
+            <span>{formatCurrency(subtotal)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm font-bold text-stone-500">
+            <span>Taxa de entrega</span>
+            <span>{deliveryFee > 0 ? formatCurrency(deliveryFee) : 'Grátis'}</span>
+          </div>
+          <div className="flex items-center justify-between text-xl font-black">
+            <span>Total</span>
+            <span className="text-brand">{formatCurrency(total)}</span>
+          </div>
         </div>
 
         {error && <p className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-600">{error}</p>}
@@ -250,10 +264,11 @@ function Checkout({ store, cart, cartTotal, onClose, onAdd, onRemove }: { store:
   );
 }
 
-function generateWhatsAppLink({ store, cart, cartTotal, customerName, address, paymentMethod, notes }: {
+function generateWhatsAppLink({ store, cart, subtotal, deliveryFee, customerName, address, paymentMethod, notes }: {
   store: Store;
   cart: CartItem[];
-  cartTotal: number;
+  subtotal: number;
+  deliveryFee: number;
   customerName: string;
   address: string;
   paymentMethod: string;
@@ -270,7 +285,9 @@ function generateWhatsAppLink({ store, cart, cartTotal, customerName, address, p
   cart.forEach(item => {
     message += `- ${item.quantity}x ${item.name} — R$ ${item.price.toFixed(2).replace('.', ',')} cada\n`;
   });
-  message += `\nTotal: R$ ${cartTotal.toFixed(2).replace('.', ',')}\n`;
+  message += `\nSubtotal: ${formatCurrency(subtotal)}\n`;
+  message += `Taxa de entrega: ${deliveryFee > 0 ? formatCurrency(deliveryFee) : 'Grátis'}\n`;
+  message += `Total: ${formatCurrency(subtotal + deliveryFee)}\n`;
   if (notes.trim()) message += `\nObservação:\n${notes.trim()}`;
   return `https://wa.me/${finalNumber}?text=${encodeURIComponent(message)}`;
 }

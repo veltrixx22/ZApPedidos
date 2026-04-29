@@ -49,7 +49,8 @@ export const dbService = {
       const snapshot = await withTimeout(getDocs(q), 'Buscar loja por slug');
       if (snapshot.empty) return null;
       const storeDoc = snapshot.docs[0];
-      return { id: storeDoc.id, ...storeDoc.data() } as Store;
+      const data = storeDoc.data();
+      return { id: storeDoc.id, ...data, deliveryFee: Number(data.deliveryFee || 0) } as Store;
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, path);
       return null;
@@ -76,6 +77,7 @@ export const dbService = {
         whatsappNumber: store.whatsappNumber.replace(/\D/g, ''),
         slug,
         adminCode: store.adminCode.trim(),
+        deliveryFee: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }), 'Criar loja');
@@ -86,7 +88,7 @@ export const dbService = {
     }
   },
 
-  async updateStore(storeId: string, store: Partial<Pick<Store, 'businessName' | 'whatsappNumber' | 'slug'>>): Promise<void> {
+  async updateStore(storeId: string, store: Partial<Pick<Store, 'businessName' | 'whatsappNumber' | 'slug' | 'deliveryFee'>>): Promise<void> {
     const path = `stores/${storeId}`;
     try {
       const payload: DocumentData = {
