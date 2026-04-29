@@ -13,10 +13,30 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { handleFirestoreError, OperationType } from '../lib/errorHandling';
-import type { Product, Store } from '../types';
+import type { PaymentMethods, Product, Store } from '../types';
 
 type StoreInput = Pick<Store, 'businessName' | 'whatsappNumber' | 'slug' | 'adminCode'>;
 type ProductInput = Omit<Product, 'id' | 'createdAt' | 'updatedAt'>;
+
+export const defaultPaymentMethods: PaymentMethods = {
+  pix: true,
+  cash: true,
+  debitCard: true,
+  creditCard: true,
+};
+
+function normalizeStoreData(id: string, data: DocumentData): Store {
+  return {
+    id,
+    ...data,
+    deliveryFee: Number(data.deliveryFee || 0),
+    paymentMethods: { ...defaultPaymentMethods, ...(data.paymentMethods || {}) },
+    pixKey: data.pixKey || '',
+    pixReceiverName: data.pixReceiverName || '',
+    pixQrCodeUrl: data.pixQrCodeUrl || '',
+    paymentInstructions: data.paymentInstructions || '',
+  } as Store;
+}
 
 const FIRESTORE_TIMEOUT_MS = 15000;
 
@@ -50,7 +70,7 @@ export const dbService = {
       if (snapshot.empty) return null;
       const storeDoc = snapshot.docs[0];
       const data = storeDoc.data();
-      return { id: storeDoc.id, ...data, deliveryFee: Number(data.deliveryFee || 0) } as Store;
+      return normalizeStoreData(storeDoc.id, data);
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, path);
       return null;
@@ -78,6 +98,11 @@ export const dbService = {
         slug,
         adminCode: store.adminCode.trim(),
         deliveryFee: 0,
+        paymentMethods: defaultPaymentMethods,
+        pixKey: '',
+        pixReceiverName: '',
+        pixQrCodeUrl: '',
+        paymentInstructions: '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }), 'Criar loja');
@@ -88,7 +113,7 @@ export const dbService = {
     }
   },
 
-  async updateStore(storeId: string, store: Partial<Pick<Store, 'businessName' | 'whatsappNumber' | 'slug' | 'deliveryFee'>>): Promise<void> {
+  async updateStore(storeId: string, store: Partial<Pick<Store, 'businessName' | 'whatsappNumber' | 'slug' | 'deliveryFee' | 'paymentMethods' | 'pixKey' | 'pixReceiverName' | 'pixQrCodeUrl' | 'paymentInstructions'>>): Promise<void> {
     const path = `stores/${storeId}`;
     try {
       const payload: DocumentData = {

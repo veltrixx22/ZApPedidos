@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ChevronRight, ImageIcon, Minus, Plus, ShoppingBag, X, Zap } from 'lucide-react';
+import { ChevronRight, Copy, ImageIcon, Minus, Plus, ShoppingBag, X, Zap } from 'lucide-react';
 import { formatCurrency } from '../lib/currency';
 import { dbService } from '../services/dbService';
 import type { CartItem, Product, Store } from '../types';
@@ -25,9 +25,9 @@ export default function MenuPage() {
   }, [slug]);
 
   const categories = useMemo(() => Array.from(new Set(products.map(product => product.category || 'Geral'))).sort(), [products]);
-  const cartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
+  const subtotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
   const deliveryFee = Number(store?.deliveryFee || 0);
-  const orderTotal = cartTotal + deliveryFee;
+  const orderTotal = subtotal + deliveryFee;
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
 
   const addToCart = (product: Product) => {
@@ -103,10 +103,7 @@ export default function MenuPage() {
 
       {cartCount > 0 && (
         <div className="fixed inset-x-0 bottom-5 z-30 mx-auto max-w-2xl px-5">
-          <button
-            onClick={() => setCheckoutOpen(true)}
-            className="flex w-full items-center justify-between rounded-[28px] bg-brand p-5 font-black text-white shadow-2xl shadow-orange-200"
-          >
+          <button onClick={() => setCheckoutOpen(true)} className="flex w-full items-center justify-between rounded-[28px] bg-brand p-5 font-black text-white shadow-2xl shadow-orange-200">
             <span className="flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-brand">{cartCount}</span>
               Ver sacola
@@ -120,7 +117,7 @@ export default function MenuPage() {
         <Checkout
           store={store}
           cart={cart}
-          subtotal={cartTotal}
+          subtotal={subtotal}
           deliveryFee={deliveryFee}
           onClose={() => setCheckoutOpen(false)}
           onAdd={addToCart}
@@ -161,36 +158,29 @@ function ImageWithFallback({ src, alt, className }: { src?: string; alt: string;
   }, [src]);
 
   if (!src || imageFailed) {
-    return (
-      <div className={`${className} flex items-center justify-center bg-stone-100 text-stone-300`}>
-        <ImageIcon className="h-7 w-7" />
-      </div>
-    );
+    return <div className={`${className} flex items-center justify-center bg-stone-100 text-stone-300`}><ImageIcon className="h-7 w-7" /></div>;
   }
 
   return (
     <div className="relative h-full w-full">
       {!loaded && <div className="absolute inset-0 bg-stone-100" />}
-      <img
-        src={src}
-        alt={alt}
-        className={className}
-        onLoad={() => setLoaded(true)}
-        onError={() => {
-          setLoaded(true);
-          setImageFailed(true);
-        }}
-      />
+      <img src={src} alt={alt} className={className} onLoad={() => setLoaded(true)} onError={() => { setLoaded(true); setImageFailed(true); }} />
     </div>
   );
 }
 
 function Checkout({ store, cart, subtotal, deliveryFee, onClose, onAdd, onRemove }: { store: Store; cart: CartItem[]; subtotal: number; deliveryFee: number; onClose: () => void; onAdd: (product: Product) => void; onRemove: (id: string) => void }) {
+  const paymentOptions = getPaymentOptions(store);
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('PIX');
+  const [paymentMethod, setPaymentMethod] = useState(paymentOptions[0]?.value || 'Pix');
+  const [changeFor, setChangeFor] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
+  const [copyStatus, setCopyStatus] = useState('');
+  const total = subtotal + deliveryFee;
+  const isPix = paymentMethod === 'Pix';
+  const isCash = paymentMethod === 'Dinheiro';
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -199,10 +189,19 @@ function Checkout({ store, cart, subtotal, deliveryFee, onClose, onAdd, onRemove
       setError('Informe nome e endereco para finalizar.');
       return;
     }
-    window.open(generateWhatsAppLink({ store, cart, subtotal, deliveryFee, customerName, address, paymentMethod, notes }), '_blank');
+    window.open(generateWhatsAppLink({ store, cart, subtotal, deliveryFee, customerName, address, paymentMethod, changeFor, notes }), '_blank');
   };
 
-  const total = subtotal + deliveryFee;
+  const copyPixKey = async () => {
+    if (!store.pixKey) return;
+    try {
+      await copyText(store.pixKey);
+      setCopyStatus('Chave Pix copiada!');
+    } catch (error) {
+      console.error('Copy Pix key error:', error);
+      setCopyStatus('Nao foi possivel copiar. Copie manualmente.');
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-stone-950/60 backdrop-blur-sm sm:items-center sm:p-6">
@@ -229,18 +228,9 @@ function Checkout({ store, cart, subtotal, deliveryFee, onClose, onAdd, onRemove
         </div>
 
         <div className="my-6 space-y-3 border-y border-stone-100 py-5">
-          <div className="flex items-center justify-between text-sm font-bold text-stone-500">
-            <span>Subtotal</span>
-            <span>{formatCurrency(subtotal)}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm font-bold text-stone-500">
-            <span>Taxa de entrega</span>
-            <span>{deliveryFee > 0 ? formatCurrency(deliveryFee) : 'Grátis'}</span>
-          </div>
-          <div className="flex items-center justify-between text-xl font-black">
-            <span>Total</span>
-            <span className="text-brand">{formatCurrency(total)}</span>
-          </div>
+          <SummaryRow label="Subtotal" value={formatCurrency(subtotal)} />
+          <SummaryRow label="Taxa de entrega" value={deliveryFee > 0 ? formatCurrency(deliveryFee) : 'Grátis'} />
+          <div className="flex items-center justify-between text-xl font-black"><span>Total</span><span className="text-brand">{formatCurrency(total)}</span></div>
         </div>
 
         {error && <p className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-600">{error}</p>}
@@ -249,22 +239,72 @@ function Checkout({ store, cart, subtotal, deliveryFee, onClose, onAdd, onRemove
           <input value={customerName} onChange={event => setCustomerName(event.target.value)} placeholder="Seu nome" className="input-field" />
           <textarea value={address} onChange={event => setAddress(event.target.value)} placeholder="Endereco de entrega" rows={3} className="input-field resize-none" />
           <select value={paymentMethod} onChange={event => setPaymentMethod(event.target.value)} className="input-field">
-            <option>PIX</option>
-            <option>Dinheiro</option>
-            <option>Cartao de Credito</option>
-            <option>Cartao de Debito</option>
+            {paymentOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
+
+          {isPix && <PixPaymentBox store={store} copyPixKey={copyPixKey} copyStatus={copyStatus} />}
+          {isCash && <input value={changeFor} onChange={event => setChangeFor(event.target.value)} placeholder="Troco para quanto?" className="input-field" />}
+
           <input value={notes} onChange={event => setNotes(event.target.value)} placeholder="Observacao" className="input-field" />
-          <button className="rounded-[28px] bg-whatsapp px-8 py-5 font-black uppercase tracking-widest text-white">
-            Finalizar pedido no WhatsApp
-          </button>
+          <button className="rounded-[28px] bg-whatsapp px-8 py-5 font-black uppercase tracking-widest text-white">Finalizar pedido no WhatsApp</button>
         </div>
       </form>
     </div>
   );
 }
 
-function generateWhatsAppLink({ store, cart, subtotal, deliveryFee, customerName, address, paymentMethod, notes }: {
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return <div className="flex items-center justify-between text-sm font-bold text-stone-500"><span>{label}</span><span>{value}</span></div>;
+}
+
+function PixPaymentBox({ store, copyPixKey, copyStatus }: { store: Store; copyPixKey: () => void; copyStatus: string }) {
+  return (
+    <div className="rounded-[28px] bg-orange-50 p-5 ring-1 ring-orange-100">
+      <h3 className="text-lg font-black text-orange-950">Pagamento via Pix</h3>
+      {store.pixKey && (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="break-all text-sm font-bold text-orange-900">Chave Pix: {store.pixKey}</p>
+          <button type="button" onClick={copyPixKey} className="btn-secondary"><Copy className="h-4 w-4" /> Copiar chave Pix</button>
+        </div>
+      )}
+      {store.pixReceiverName && <p className="mt-2 text-sm font-bold text-orange-900">Recebedor: {store.pixReceiverName}</p>}
+      {store.pixQrCodeUrl && <div className="mt-4 max-w-xs overflow-hidden rounded-3xl bg-white"><ImageWithFallback src={store.pixQrCodeUrl} alt="QR Code Pix" className="h-60 w-full object-contain" /></div>}
+      {store.paymentInstructions && <p className="mt-3 whitespace-pre-wrap text-sm font-medium text-orange-900">{store.paymentInstructions}</p>}
+      {!store.pixKey && !store.pixQrCodeUrl && <p className="mt-3 text-sm font-bold text-orange-900">Você poderá solicitar a chave Pix pelo WhatsApp ao finalizar o pedido.</p>}
+      {copyStatus && <p className="mt-3 text-sm font-bold text-orange-900">{copyStatus}</p>}
+    </div>
+  );
+}
+
+function getPaymentOptions(store: Store) {
+  const methods = store.paymentMethods || { pix: true, cash: true, debitCard: true, creditCard: true };
+  const options = [
+    methods.pix && { value: 'Pix', label: 'Pix' },
+    methods.cash && { value: 'Dinheiro', label: 'Dinheiro' },
+    methods.creditCard && { value: 'Cartão de crédito', label: 'Cartão de crédito' },
+    methods.debitCard && { value: 'Cartão de débito', label: 'Cartão de débito' },
+  ].filter(Boolean) as { value: string; label: string }[];
+  return options.length ? options : [{ value: 'Pix', label: 'Pix' }];
+}
+
+async function copyText(value: string) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textArea = document.createElement('textarea');
+  textArea.value = value;
+  textArea.style.position = 'fixed';
+  textArea.style.left = '-999999px';
+  textArea.style.top = '-999999px';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  document.execCommand('copy');
+  textArea.remove();
+}
+
+function generateWhatsAppLink({ store, cart, subtotal, deliveryFee, customerName, address, paymentMethod, changeFor, notes }: {
   store: Store;
   cart: CartItem[];
   subtotal: number;
@@ -272,6 +312,7 @@ function generateWhatsAppLink({ store, cart, subtotal, deliveryFee, customerName
   customerName: string;
   address: string;
   paymentMethod: string;
+  changeFor: string;
   notes: string;
 }) {
   const cleanNumber = store.whatsappNumber.replace(/[\s()+-]/g, '').replace(/\D/g, '');
@@ -281,9 +322,18 @@ function generateWhatsAppLink({ store, cart, subtotal, deliveryFee, customerName
   message += `Cliente: ${customerName}\n`;
   message += `Endereço: ${address}\n`;
   message += `Pagamento: ${paymentMethod}\n\n`;
+  if (paymentMethod === 'Pix') {
+    message += `Dados para Pix:\n`;
+    message += `Chave Pix: ${store.pixKey || 'Solicitar pelo WhatsApp'}\n`;
+    message += `Recebedor: ${store.pixReceiverName || '-'}\n`;
+    if (store.paymentInstructions) message += `Instruções: ${store.paymentInstructions}\n`;
+    message += `\n`;
+  }
+  if (paymentMethod === 'Cartão de crédito' || paymentMethod === 'Cartão de débito') message += `Observação: Levar maquininha.\n\n`;
+  if (paymentMethod === 'Dinheiro') message += `Troco para: ${changeFor || 'Não informado'}\n\n`;
   message += `Pedido:\n`;
   cart.forEach(item => {
-    message += `- ${item.quantity}x ${item.name} — R$ ${item.price.toFixed(2).replace('.', ',')} cada\n`;
+    message += `- ${item.quantity}x ${item.name} — ${formatCurrency(item.price)} cada\n`;
   });
   message += `\nSubtotal: ${formatCurrency(subtotal)}\n`;
   message += `Taxa de entrega: ${deliveryFee > 0 ? formatCurrency(deliveryFee) : 'Grátis'}\n`;

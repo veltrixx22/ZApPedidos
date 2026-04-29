@@ -111,7 +111,15 @@ function Dashboard({ store, products, onRefresh, onClearAccess }: { store: Store
     businessName: store.businessName,
     whatsappNumber: store.whatsappNumber,
     deliveryFee: String(store.deliveryFee || 0).replace('.', ','),
+    paymentMethods: store.paymentMethods,
+    pixKey: store.pixKey,
+    pixReceiverName: store.pixReceiverName,
+    pixQrCodeUrl: store.pixQrCodeUrl,
+    paymentInstructions: store.paymentInstructions,
   });
+  const [pixQrUploading, setPixQrUploading] = useState(false);
+  const [pixQrStatus, setPixQrStatus] = useState(store.pixQrCodeUrl ? 'QR Code enviado' : '');
+  const [pixQrError, setPixQrError] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -135,9 +143,61 @@ function Dashboard({ store, products, onRefresh, onClearAccess }: { store: Store
       businessName: settings.businessName,
       whatsappNumber: settings.whatsappNumber,
       deliveryFee: parseCurrency(settings.deliveryFee),
+      paymentMethods: settings.paymentMethods,
+      pixKey: settings.pixKey.trim(),
+      pixReceiverName: settings.pixReceiverName.trim(),
+      pixQrCodeUrl: settings.pixQrCodeUrl,
+      paymentInstructions: settings.paymentInstructions.trim(),
     });
     await onRefresh();
     setSavingSettings(false);
+  };
+
+  const togglePaymentMethod = (key: keyof Store['paymentMethods']) => {
+    setSettings(current => ({
+      ...current,
+      paymentMethods: {
+        ...current.paymentMethods,
+        [key]: !current.paymentMethods[key],
+      },
+    }));
+  };
+
+  const handlePixQrUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setPixQrError('');
+    setPixQrStatus('');
+
+    if (!file.type.startsWith('image/')) {
+      setPixQrError('Selecione uma imagem para o QR Code.');
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      setPixQrError('A imagem deve ter no maximo 5MB.');
+      return;
+    }
+
+    try {
+      setPixQrUploading(true);
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+      const filePath = `pix-qrcodes/${store.id}/${Date.now()}-${safeFileName}`;
+      const storageRef = ref(storage, filePath);
+      await withUploadTimeout(uploadBytes(storageRef, file));
+      const downloadUrl = await withUploadTimeout(getDownloadURL(storageRef));
+      setSettings(current => ({ ...current, pixQrCodeUrl: downloadUrl }));
+      setPixQrStatus('QR Code enviado');
+    } catch (error: any) {
+      console.error('Pix QR upload error:', error);
+      const code = error?.code || 'unknown';
+      const message = error?.message || 'Erro desconhecido';
+      setPixQrError(`Erro ao enviar QR Code: ${code} - ${message}`);
+    } finally {
+      setPixQrUploading(false);
+      event.target.value = '';
+    }
   };
 
   const copyLink = async (url: string, label: string) => {
@@ -207,6 +267,53 @@ function Dashboard({ store, products, onRefresh, onClearAccess }: { store: Store
             <span className="mt-2 block pl-2 text-xs font-bold text-stone-400">Use 0 para entrega grátis ou retirada no local.</span>
           </label>
           <button disabled={savingSettings} className="btn-primary self-end"><Save className="h-4 w-4" /> {savingSettings ? 'Salvando' : 'Salvar'}</button>
+        </form>
+
+        <form onSubmit={saveSettings} className="space-y-6 rounded-[32px] bg-white p-6 shadow-sm ring-1 ring-stone-100">
+          <div>
+            <h2 className="text-2xl font-black tracking-tight text-stone-900">Formas de pagamento</h2>
+            <p className="mt-2 text-sm font-medium text-stone-500">Configure como seus clientes podem pagar o pedido.</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <PaymentToggle label="Pix" checked={settings.paymentMethods.pix} onChange={() => togglePaymentMethod('pix')} />
+            <PaymentToggle label="Dinheiro" checked={settings.paymentMethods.cash} onChange={() => togglePaymentMethod('cash')} />
+            <PaymentToggle label="Cartão de débito" checked={settings.paymentMethods.debitCard} onChange={() => togglePaymentMethod('debitCard')} />
+            <PaymentToggle label="Cartão de crédito" checked={settings.paymentMethods.creditCard} onChange={() => togglePaymentMethod('creditCard')} />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block pl-2 text-[10px] font-black uppercase tracking-widest text-stone-400">Chave Pix</span>
+              <input value={settings.pixKey} onChange={event => setSettings({ ...settings, pixKey: event.target.value })} className="input-field" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block pl-2 text-[10px] font-black uppercase tracking-widest text-stone-400">Nome do recebedor</span>
+              <input value={settings.pixReceiverName} onChange={event => setSettings({ ...settings, pixReceiverName: event.target.value })} className="input-field" />
+            </label>
+          </div>
+
+          <div className="rounded-[28px] bg-stone-50 p-4 ring-1 ring-stone-100">
+            <label className="flex cursor-pointer items-center justify-center gap-3 rounded-2xl bg-white px-5 py-4 text-sm font-black uppercase tracking-widest text-stone-800 shadow-sm ring-1 ring-stone-200">
+              <Camera className="h-5 w-5 text-brand" />
+              {pixQrUploading ? 'Enviando QR Code...' : 'Selecionar QR Code'}
+              <input type="file" accept="image/*" onChange={handlePixQrUpload} disabled={pixQrUploading || savingSettings} className="sr-only" />
+            </label>
+            {settings.pixQrCodeUrl && (
+              <div className="mt-4 max-w-xs overflow-hidden rounded-3xl bg-white">
+                <ImageWithFallback src={settings.pixQrCodeUrl} alt="QR Code Pix" className="h-56 w-full object-contain" />
+              </div>
+            )}
+            {pixQrStatus && <p className="mt-3 text-sm font-bold text-green-600">{pixQrStatus}</p>}
+            {pixQrError && <p className="mt-3 text-sm font-bold text-red-600">{pixQrError}</p>}
+          </div>
+
+          <label className="block">
+            <span className="mb-2 block pl-2 text-[10px] font-black uppercase tracking-widest text-stone-400">Instruções de pagamento</span>
+            <textarea value={settings.paymentInstructions} onChange={event => setSettings({ ...settings, paymentInstructions: event.target.value })} rows={3} className="input-field resize-none" />
+          </label>
+
+          <button disabled={savingSettings || pixQrUploading} className="btn-primary"><Save className="h-4 w-4" /> {savingSettings ? 'Salvando' : 'Salvar pagamentos'}</button>
         </form>
 
         {products.length === 0 ? (
@@ -297,6 +404,15 @@ function LinkBox({ label, value, onCopy }: { label: string; value: string; onCop
       </div>
       <input value={value} readOnly className="input-field" />
     </div>
+  );
+}
+
+function PaymentToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-stone-50 p-4 font-bold text-stone-700 ring-1 ring-stone-100">
+      <input type="checkbox" checked={checked} onChange={onChange} className="h-5 w-5 accent-orange-500" />
+      {label}
+    </label>
   );
 }
 

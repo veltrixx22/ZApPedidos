@@ -5,8 +5,20 @@ export interface Store {
   slug: string;
   adminCode: string;
   deliveryFee: number;
+  paymentMethods: PaymentMethods;
+  pixKey: string;
+  pixReceiverName: string;
+  pixQrCodeUrl: string;
+  paymentInstructions: string;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface PaymentMethods {
+  pix: boolean;
+  cash: boolean;
+  debitCard: boolean;
+  creditCard: boolean;
 }
 
 export interface Product {

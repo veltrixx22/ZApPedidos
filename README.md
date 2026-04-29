@@ -58,8 +58,12 @@ service firebase.storage {
     match /products/{storeId}/{allPaths=**} {
       allow read, write: if true;
     }
+
+    match /pix-qrcodes/{storeId}/{allPaths=**} {
+      allow read, write: if true;
+    }
   }
 }
 ```
 
-Warning: These Storage rules are for MVP testing only. Before scaling, secure uploads with authentication and file validation.
+Warning: These rules are for MVP testing only. Before scaling, secure uploads with authentication and validation.
